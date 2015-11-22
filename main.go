@@ -8,42 +8,18 @@ import (
 	"bufio"
 	"compress/bzip2"
 	"compress/gzip"
-	"encoding/json"
 	"encoding/xml"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"runtime"
 	"strings"
 )
-
-const (
-	JsonOut = iota
-	XmlOut
-	CountAll
-)
-
-var toJson bool = false
-var toXml bool = false
-var oneLevelDown bool = false
-var countAll bool = false
-var musage bool = false
-
-var uniqueFlags = []*bool{
-	&toJson,
-	&toXml,
-	&countAll}
 
 var filename = "/home/gnewton/newtong/work/pubmedDownloadXmlById/aa/pubmed_xml_26419650"
 
 func init() {
-	flag.BoolVar(&toJson, "j", toJson, "Convert to JSON")
-	flag.BoolVar(&toXml, "x", toXml, "Convert to XML")
-	flag.BoolVar(&countAll, "c", countAll, "Count each instance of XML tags")
-	flag.BoolVar(&oneLevelDown, "s", oneLevelDown, "Stream XML by using XML elements one down from the root tag. Good for huge XML files (see http://blog.davidsingleton.org/parsing-huge-xml-files-with-go/")
-	flag.BoolVar(&musage, "h", musage, "Usage")
 	flag.StringVar(&filename, "f", filename, "XML file or URL to read in")
 }
 
@@ -52,130 +28,40 @@ var out int = -1
 var counters map[string]*int
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	dbInit()
+
 	flag.Parse()
 
-	if musage {
-		flag.Usage()
-		return
-	}
-
-	numSetBools, outFlag := numberOfBoolsSet(uniqueFlags)
-	if numSetBools == 0 {
-		flag.Usage()
-		return
-	}
-
-	if numSetBools != 1 {
-		flag.Usage()
-		log.Fatal("Only one of ", uniqueFlags, " can be set at once")
-	}
-
-	reader, xmlFile, err := genericReader(filename)
+	reader, _, err := genericReader(filename)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-
+	count := 0
+	artCount := 0
 	decoder := xml.NewDecoder(reader)
 	counters = make(map[string]*int)
 	for {
+		fmt.Println(count)
+		count = count + 1
 		token, _ := decoder.Token()
 		if token == nil {
 			break
 		}
 		switch se := token.(type) {
 		case xml.StartElement:
-			handleFeed(se, decoder, outFlag)
-		}
-	}
-	if xmlFile != nil {
-		defer xmlFile.Close()
-	}
-	if countAll {
-		for k, v := range counters {
-			fmt.Println(*v, k)
-		}
-	}
-}
-
-func handleFeed(se xml.StartElement, decoder *xml.Decoder, outFlag *bool) {
-	if outFlag == &countAll {
-		incrementCounter(se.Name.Space, se.Name.Local)
-	} else {
-		if !oneLevelDown {
-			if se.Name.Local == "PubmedArticleSet" && se.Name.Space == "" {
-				var item ChiPubmedArticleSet
-				decoder.DecodeElement(&item, &se)
-				switch outFlag {
-				case &toJson:
-					writeJson(item)
-				case &toXml:
-					writeXml(item)
-				}
-			}
-		} else {
-
 			if se.Name.Local == "PubmedArticle" && se.Name.Space == "" {
-				var item ChiPubmedArticle
-				decoder.DecodeElement(&item, &se)
-				switch outFlag {
-				case &toJson:
-					writeJson(item)
-				case &toXml:
-					writeXml(item)
-				}
+				artCount = artCount + 1
+				fmt.Println("**")
+				fmt.Println(artCount)
+				var pubmedArticle ChiPubmedArticle
+				decoder.DecodeElement(&pubmedArticle, &se)
+				_ = pubmedArticleToDbArticle(&pubmedArticle)
+				//log.Println(dbArticle)
 			}
-
-			if se.Name.Local == "PubmedBookArticle" && se.Name.Space == "" {
-				var item ChiPubmedBookArticle
-				decoder.DecodeElement(&item, &se)
-				switch outFlag {
-				case &toJson:
-					writeJson(item)
-				case &toXml:
-					writeXml(item)
-				}
-			}
-
 		}
 	}
-}
-
-func makeKey(space string, local string) string {
-	if space == "" {
-		space = "_"
-	}
-	return space + ":" + local
-}
-
-func incrementCounter(space string, local string) {
-	key := makeKey(space, local)
-
-	counter, ok := counters[key]
-	if !ok {
-		n := 1
-		counters[key] = &n
-	} else {
-		newv := *counter + 1
-		counters[key] = &newv
-	}
-}
-
-func writeJson(item interface{}) {
-	b, err := json.MarshalIndent(item, "", " ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(b))
-}
-
-func writeXml(item interface{}) {
-	output, err := xml.MarshalIndent(item, "  ", "    ")
-	if err != nil {
-		fmt.Printf("error: %v\n", err)
-	}
-	os.Stdout.Write(output)
 }
 
 func genericReader(filename string) (io.Reader, *os.File, error) {
@@ -200,16 +86,35 @@ func genericReader(filename string) (io.Reader, *os.File, error) {
 	return bufio.NewReader(file), file, err
 }
 
-func numberOfBoolsSet(a []*bool) (int, *bool) {
-	var setBool *bool
-	counter := 0
-	for i := 0; i < len(a); i++ {
-		if *a[i] {
-			counter += 1
-			setBool = a[i]
+func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
+	pArticle := p.ChiMedlineCitation.ChiArticle
+	a := new(Article)
+	a.Abstract = ""
+	if pArticle.ChiAbstract != nil && pArticle.ChiAbstract.ChiAbstractText != nil {
+		for i, _ := range pArticle.ChiAbstract.ChiAbstractText {
+			a.Abstract = a.Abstract + " " + pArticle.ChiAbstract.ChiAbstractText[i].Text
 		}
 	}
-	return counter, setBool
+
+	a.Title = pArticle.ChiArticleTitle.Text
+
+	if pArticle.ChiAuthorList != nil {
+		a.Authors = make([]Author, len(pArticle.ChiAuthorList.ChiAuthor))
+		for i, author := range pArticle.ChiAuthorList.ChiAuthor {
+			dau := new(Author)
+			if author.ChiIdentifier != nil {
+				dau.ID = author.ChiIdentifier.Text
+			}
+			if author.ChiLastName != nil {
+				dau.LastName = author.ChiLastName.Text
+			}
+			if author.ChiForeName != nil {
+				dau.FirstName = author.ChiForeName.Text
+			}
+			a.Authors[i] = *dau
+		}
+	}
+	return a
 }
 
 ///////////////////////////

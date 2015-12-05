@@ -8,6 +8,7 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
+	"github.com/jinzhu/gorm"
 	"log"
 	"strconv"
 	"time"
@@ -46,31 +47,49 @@ func main() {
 	counters = make(map[string]*int)
 	t0 := time.Now()
 
+	tx := db.Begin()
+
 	for {
 		if count%1000 == 0 {
-			fmt.Println(count)
-			fmt.Println(artCount)
-			t1 := time.Now()
-			fmt.Printf("The call took %v to run.\n", t1.Sub(t0))
 			fmt.Println("------------")
-			t0 = time.Now()
+			fmt.Println(count)
+			fmt.Println("------------")
 		}
-		count = count + 1
+
 		token, _ := decoder.Token()
 		if token == nil {
 			break
 		}
 		switch se := token.(type) {
 		case xml.StartElement:
+			if se.Name.Local == PUBMED_ARTICLE || se.Name.Local == "PubmedBookArticle" {
+				count = count + 1
+			}
 			if se.Name.Local == PUBMED_ARTICLE && se.Name.Space == "" {
 				artCount = artCount + 1
-				//fmt.Println("**")
-				//fmt.Println(artCount)
+				if artCount%15000 == 0 {
+					if artCount != 0 {
+						go func(tx *gorm.DB) {
+							tx.Commit()
+						}(tx)
+						tx = db.Begin()
+					}
+					fmt.Println(count)
+					fmt.Println(artCount)
+					t1 := time.Now()
+					fmt.Printf("The call took %v to run.\n", t1.Sub(t0))
+					fmt.Println("------------")
+					t0 = time.Now()
+
+				}
+
 				var pubmedArticle ChiPubmedArticle
 				decoder.DecodeElement(&pubmedArticle, &se)
 				dbArticle := pubmedArticleToDbArticle(&pubmedArticle)
-				db.Create(dbArticle)
-				//log.Println(dbArticle)
+				if err := tx.Create(dbArticle).Error; err != nil {
+					tx.Rollback()
+					log.Fatal(err)
+				}
 			}
 		}
 	}

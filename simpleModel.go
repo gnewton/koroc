@@ -7,7 +7,7 @@ import (
 )
 
 func dbInit() (*gorm.DB, error) {
-	db, err := gorm.Open("sqlite3", "/tmp/gorm.db")
+	db, err := gorm.Open("sqlite3", "/tmp/gorm_15000.db")
 	if err != nil {
 		log.Println(err)
 		return nil, err

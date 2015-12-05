@@ -1,8 +1,9 @@
 package main
 
 type Article struct {
-	Abstract  string
-	Authors   []Author   `gorm:"many2many:Article_Author;"`
+	Abstract string
+	Authors  []Author `gorm:"many2many:Article_Author;"`
+	//Authors   []Author
 	Chemicals []Chemical `gorm:"many2many:Article_Chemical;"`
 	Citations []Citation `gorm:"many2many:Article_Citation;"`
 	Day       int

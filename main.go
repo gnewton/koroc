@@ -6,10 +6,13 @@ package main
 
 import (
 	"encoding/xml"
-	"flag"
+	//"flag"
 	"fmt"
+	//"github.com/davecheney/profile"
 	"github.com/jinzhu/gorm"
 	"log"
+	//	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -17,7 +20,7 @@ import (
 var filename = "/home/gnewton/newtong/work/pubmedDownloadXmlById/aa/pubmed_xml_26419650"
 
 func init() {
-	flag.StringVar(&filename, "f", filename, "XML file or URL to read in")
+
 }
 
 var out int = -1
@@ -28,71 +31,61 @@ const PUBMED_ARTICLE = "PubmedArticle"
 
 func main() {
 
+	//defer profile.Start(profile.CPUProfile).Stop()
+
 	db, err := dbInit()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	flag.Parse()
+	pubmedArticleChannel := make(chan *ChiPubmedArticle, 25000)
 
-	reader, _, err := genericReader(filename)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	count := 0
-	artCount := 0
-	decoder := xml.NewDecoder(reader)
-	counters = make(map[string]*int)
-	t0 := time.Now()
+	done := make(chan bool)
 
-	tx := db.Begin()
+	go articleAdder(pubmedArticleChannel, done, db, 10000)
 
-	for {
-		if count%1000 == 0 {
-			fmt.Println("------------")
-			fmt.Println(count)
-			fmt.Println("------------")
+	for _, filename := range os.Args {
+
+		log.Println("Opening: " + filename)
+		reader, _, err := genericReader(filename)
+		if err != nil {
+			log.Fatal(err)
+			return
 		}
+		count := 0
 
-		token, _ := decoder.Token()
-		if token == nil {
-			break
-		}
-		switch se := token.(type) {
-		case xml.StartElement:
-			if se.Name.Local == PUBMED_ARTICLE || se.Name.Local == "PubmedBookArticle" {
-				count = count + 1
+		decoder := xml.NewDecoder(reader)
+		counters = make(map[string]*int)
+
+		for {
+			db.Raw("create unique index IF NOT EXISTS a2 on Article_Author(article_id,author_id);")
+			if count%1000 == 0 {
+				fmt.Println("------------")
+				fmt.Println(count)
+				fmt.Println("------------")
 			}
-			if se.Name.Local == PUBMED_ARTICLE && se.Name.Space == "" {
-				artCount = artCount + 1
-				if artCount%15000 == 0 {
-					if artCount != 0 {
-						go func(tx *gorm.DB) {
-							tx.Commit()
-						}(tx)
-						tx = db.Begin()
-					}
-					fmt.Println(count)
-					fmt.Println(artCount)
-					t1 := time.Now()
-					fmt.Printf("The call took %v to run.\n", t1.Sub(t0))
-					fmt.Println("------------")
-					t0 = time.Now()
 
-				}
-
-				var pubmedArticle ChiPubmedArticle
-				decoder.DecodeElement(&pubmedArticle, &se)
-				dbArticle := pubmedArticleToDbArticle(&pubmedArticle)
-				if err := tx.Create(dbArticle).Error; err != nil {
-					tx.Rollback()
-					log.Fatal(err)
+			token, _ := decoder.Token()
+			if token == nil {
+				break
+			}
+			switch se := token.(type) {
+			case xml.StartElement:
+				//if se.Name.Local == PUBMED_ARTICLE || se.Name.Local == "PubmedBookArticle" {
+				//
+				//}
+				if se.Name.Local == PUBMED_ARTICLE && se.Name.Space == "" {
+					count = count + 1
+					var pubmedArticle ChiPubmedArticle
+					decoder.DecodeElement(&pubmedArticle, &se)
+					pubmedArticleChannel <- &pubmedArticle
 				}
 			}
 		}
 	}
+	close(pubmedArticleChannel)
+	_ = <-done
 }
 
 func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
@@ -124,5 +117,48 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 			dbArticle.Authors[i] = *dbAuthor
 		}
 	}
+
 	return dbArticle
+}
+
+func articleAdder(pubmedArticleChannel chan *ChiPubmedArticle, done chan bool, db *gorm.DB, commitSize int) {
+	commitChannel := make(chan *gorm.DB, 10)
+	doneCommitting := make(chan bool)
+
+	go committer(commitChannel, doneCommitting, db)
+
+	tx := db.Begin()
+	t0 := time.Now()
+	counter := 0
+	for pubmedArticle := range pubmedArticleChannel {
+		counter = counter + 1
+		if counter%commitSize == 0 {
+			commitChannel <- tx
+			t1 := time.Now()
+			fmt.Printf("++++++++++++ The call took %v to run.\n", t1.Sub(t0))
+			t0 = time.Now()
+			tx = db.Begin()
+		}
+		dbArticle := pubmedArticleToDbArticle(pubmedArticle)
+		if err := tx.Create(dbArticle).Error; err != nil {
+			//tx.Rollback()
+			log.Println("\\\\\\\\\\\\\\\\")
+			//log.Fatal(err)
+		}
+	}
+	commitChannel <- tx
+	close(commitChannel)
+	db.Close()
+	_ = <-doneCommitting
+	done <- true
+}
+
+func committer(transactionChannel chan *gorm.DB, doneCommitting chan bool, db *gorm.DB) {
+	for tx := range transactionChannel {
+		t0 := time.Now()
+		tx.Commit()
+		t1 := time.Now()
+		fmt.Printf("The call took %v to run.\n", t1.Sub(t0))
+	}
+	doneCommitting <- true
 }

@@ -7,12 +7,12 @@ import (
 )
 
 func dbInit() (*gorm.DB, error) {
-	db, err := gorm.Open("sqlite3", "/tmp/gorm_15000.db")
+	db, err := gorm.Open("sqlite3", "/tmp/gorm_15000-x.db")
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
-	//db.LogMode(true)
+	db.LogMode(true)
 	db.DB()
 	db.DB().Ping()
 	db.DB().SetMaxIdleConns(10)
@@ -25,31 +25,35 @@ func dbInit() (*gorm.DB, error) {
 	db.CreateTable(&Gene{})
 	db.CreateTable(&Journal{})
 	db.CreateTable(&MeshTerm{})
+	db.Raw("PRAGMA page_size = 4096;")
 
-	// chemical1 := Chemical{ID: 1, Name: "acetone"}
-	// chemical2 := Chemical{ID: 2, Name: "water"}
+	// PRAGMA main.cache_size=10000;
+	// PRAGMA main.locking_mode=EXCLUSIVE;
+	// PRAGMA main.synchronous=NORMAL;
+	// PRAGMA main.journal_mode=WAL;
+	// PRAGMA main.cache_size=5000;
 
-	// gene1 := Gene{ID: 1, Name: "ALM3"}
-	// gene2 := Gene{ID: 2, Name: "Kenoacetase"}
+	//db.Raw("PRAGMA automatic_index = ON;")
+	db.Raw("PRAGMA cache_size = 32768;")
+	//db.Raw("PRAGMA cache_spill = OFF;")
+	//db.Raw("PRAGMA foreign_keys = ON;")
+	//db.Raw("PRAGMA journal_mode = WAL;")
+	db.Raw("PRAGMA journal_mode = OFF;")
+	db.Raw("PRAGMA journal_size_limit = 67110000;")
+	db.Raw("PRAGMA locking_mode = EXCLUSIVE;")
+	db.Raw("PRAGMA page_size = 4096;")
+	//db.Raw("PRAGMA recursive_triggers = ON;")
+	db.Raw("PRAGMA secure_delete = ON;")
+	//db.Raw("PRAGMA synchronous = NORMAL;")
+	db.Raw("PRAGMA temp_store = MEMORY;")
+	db.Raw("PRAGMA wal_autocheckpoint = 16384;")
+	db.Raw("PRAGMA mmap_size = 1000000;")
+	db.Raw("PRAGMA soft_heap_limit = 1000000;")
+	db.Raw("PRAGMA threads = 4;")
 
-	// meshTerm1 := MeshTerm{ID: 1, Descriptor: "d1"}
-	// meshTerm2 := MeshTerm{ID: 2, Descriptor: "d2"}
+	db2 := db.Table("Article_Author")
+	db2.AddUniqueIndex("a7", "article_id", "author_id")
 
-	// citation1 := Citation{SourcePmid: 124, CitationPmid: 43}
-	// citation2 := Citation{SourcePmid: 124, CitationPmid: 933}
-
-	// author1 := Author{ID: "1", LastName: "Smith", FirstName: "Bill"}
-	// author2 := Author{ID: "3", LastName: "Williams", FirstName: "James"}
-
-	// journal := Journal{ID: 22, Title: "art title", Issn: "34454"}
-	// article := Article{ID: 124, Title: "a new article title...", Journal: journal, Chemicals: []Chemical{chemical1, chemical2}, Genes: []Gene{gene1, gene2}, MeshTerms: []MeshTerm{meshTerm1, meshTerm2},
-	// 	Citations: []Citation{citation1, citation2}, Authors: []Author{author1, author2}}
-	// db.Create(&article)
-
-	// citation1 = Citation{SourcePmid: 129, CitationPmid: 43}
-	// article2 := Article{ID: 129, Title: "ZZZZZZZZZZZz a new article title...", Journal: journal, Chemicals: []Chemical{chemical2}, Genes: []Gene{gene1}, MeshTerms: []MeshTerm{meshTerm2},
-	// 	Citations: []Citation{citation1}, Authors: []Author{author2}}
-	// db.Create(&article2)
 	return &db, nil
 }
 

@@ -1,22 +1,26 @@
 package main
 
+import (
+	"database/sql"
+)
+
 type Article struct {
-	Abstract string
-	Authors  []Author `gorm:"many2many:Article_Author;"`
-	//Authors   []Author
-	Chemicals []Chemical `gorm:"many2many:Article_Chemical;"`
-	Citations []Citation `gorm:"many2many:Article_Citation;"`
-	Day       int
-	Genes     []Gene `gorm:"many2many:Article_Gene;"`
-	Id        int64  `gorm:"primary_key"`
-	Issue     string
-	Journal   Journal
-	Language  string
-	MeshTerms []MeshTerm `gorm:"many2many:Article_MeshTerm;"`
-	Month     int
-	Title     string
-	Volume    string
-	Year      int
+	Abstract   string
+	Authors    []Author   `gorm:"many2many:Article_Author;"`
+	Chemicals  []Chemical `gorm:"many2many:Article_Chemical;"`
+	Citations  []Citation `gorm:"many2many:Article_Citation;"`
+	Day        int
+	Genes      []Gene `gorm:"many2many:Article_Gene;"`
+	Id         int64  `gorm:"primary_key"`
+	Issue      string
+	Journal    Journal
+	journal_id sql.NullInt64
+	Language   string
+	MeshTerms  []MeshTerm `gorm:"many2many:Article_MeshTerm;"`
+	Month      string
+	Title      string
+	Volume     string
+	Year       int
 }
 
 type Journal struct {
@@ -51,7 +55,7 @@ type Chemical struct {
 }
 
 type Citation struct {
-	Id           int64 `gorm:"primary_key"`
-	SourcePmid   int64
-	CitationPmid int64
+	Id        int64 `gorm:"primary_key"`
+	RefSource string
+	Pmid      int64
 }

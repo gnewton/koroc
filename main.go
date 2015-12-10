@@ -20,8 +20,8 @@ import (
 var filename = "/home/gnewton/newtong/work/pubmedDownloadXmlById/aa/pubmed_xml_26419650"
 
 const TransactionSize = 100000
-const ArticleBufferSize = 200000
-
+const ArticleBufferSize = 1
+const chunkSize = 50000
 const CommentsCorrections_RefType = "Cites"
 
 func init() {
@@ -43,14 +43,21 @@ func main() {
 		log.Fatal(err)
 		return
 	}
+	defer func() {
+		err = db.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	pubmedArticleChannel := make(chan *ChiPubmedArticle, ArticleBufferSize)
+	articleChannel := make(chan []*Article)
 
 	done := make(chan bool)
 
-	go articleAdder(pubmedArticleChannel, done, db, TransactionSize)
+	go articleAdder(articleChannel, done, db, TransactionSize)
 	count := 0
-
+	chunkCount := 0
+	arrayIndex := 0
 	for i, filename := range os.Args {
 		if i == 0 {
 			continue
@@ -58,10 +65,12 @@ func main() {
 		log.Println("Opening: " + filename)
 		log.Println(strconv.Itoa(i) + " of " + strconv.Itoa(len(os.Args)))
 		reader, _, err := genericReader(filename)
+
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
+		articleArray := make([]*Article, chunkSize)
 
 		decoder := xml.NewDecoder(reader)
 		counters = make(map[string]*int)
@@ -74,34 +83,54 @@ func main() {
 			}
 			switch se := token.(type) {
 			case xml.StartElement:
-				//if se.Name.Local == PUBMED_ARTICLE || se.Name.Local == "PubmedBookArticle" {
-				//
-				//}
 				if se.Name.Local == PUBMED_ARTICLE && se.Name.Space == "" {
 					if count%10000 == 0 && count != 0 {
 						fmt.Println("------------")
 						fmt.Println(count)
+						fmt.Println(arrayIndex)
 						fmt.Println("------------")
 					}
 
 					count = count + 1
 					var pubmedArticle ChiPubmedArticle
 					decoder.DecodeElement(&pubmedArticle, &se)
-					pubmedArticleChannel <- &pubmedArticle
+					article := pubmedArticleToDbArticle(&pubmedArticle)
+					if article == nil {
+						log.Println("nil")
+						continue
+					}
+					articleArray[arrayIndex] = article
+					arrayIndex = arrayIndex + 1
+					if arrayIndex >= chunkSize {
+						log.Printf("Sending chunk %d", chunkCount)
+						chunkCount = chunkCount + 1
+						//pubmedArticleChannel <- &pubmedArticle
+
+						articleChannel <- articleArray
+						log.Println("Sent")
+						articleArray = make([]*Article, chunkSize)
+						arrayIndex = 0
+					}
 				}
 			}
 		}
 	}
-	close(pubmedArticleChannel)
+	close(articleChannel)
 	_ = <-done
+
 }
 
 func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 	medlineCitation := p.ChiMedlineCitation
 	pArticle := medlineCitation.ChiArticle
+	if pArticle == nil {
+		return nil
+	}
+
 	dbArticle := new(Article)
 	dbArticle.Id, _ = strconv.ParseInt(p.ChiMedlineCitation.ChiPMID.Text, 10, 64)
 	dbArticle.Abstract = ""
+	//if pArticle !=pArticle.ChiAbstract != nil && pArticle.ChiAbstract.ChiAbstractText != nil {
 	if pArticle.ChiAbstract != nil && pArticle.ChiAbstract.ChiAbstractText != nil {
 		for i, _ := range pArticle.ChiAbstract.ChiAbstractText {
 			dbArticle.Abstract = dbArticle.Abstract + " " + pArticle.ChiAbstract.ChiAbstractText[i].Text
@@ -187,47 +216,54 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 	return dbArticle
 }
 
-func articleAdder(pubmedArticleChannel chan *ChiPubmedArticle, done chan bool, db *gorm.DB, commitSize int) {
+func articleTransformer(pubmedArticleChannel chan []*ChiPubmedArticle, articleChannel chan []*Article) {
+	for pubmedArticleArray := range pubmedArticleChannel {
+		log.Println("-- transformer Consuming chunk")
+		articleArray := make([]*Article, len(pubmedArticleArray))
+		for i, pubmedArticle := range pubmedArticleArray {
+			dbArticle := pubmedArticleToDbArticle(pubmedArticle)
+			articleArray[i] = dbArticle
+		}
+		log.Println("-- transformer Sending chunk")
+		articleChannel <- articleArray
+	}
+	close(articleChannel)
+}
 
-	//commitChannel := make(chan *gorm.DB, 10)
-	//doneCommitting := make(chan bool)
-
-	//go committer(commitChannel, doneCommitting, db)
-
+func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, commitSize int) {
+	log.Println("Start articleAdder")
 	tx := db.Begin()
 	t0 := time.Now()
 	counter := 0
-	for pubmedArticle := range pubmedArticleChannel {
-		counter = counter + 1
-		if counter%commitSize == 0 {
-			//commitChannel <- tx
-			fmt.Printf("++++++++++++ Starting commit: %v \n", t0)
-			tx.Commit()
-			t1 := time.Now()
-			fmt.Printf("++++++++++++ The call took %v to run.\n", t1.Sub(t0))
-			t0 = time.Now()
-			tx = db.Begin()
-		}
-		dbArticle := pubmedArticleToDbArticle(pubmedArticle)
-		if err := tx.Create(dbArticle).Error; err != nil {
-			//tx.Rollback()
-			log.Println("\\\\\\\\\\\\\\\\")
-			//log.Fatal(err)
-		}
-	}
-	//commitChannel <- tx
-	//close(commitChannel)
-	db.Close()
-	//_ = <-doneCommitting
-	done <- true
-}
+	for articleArray := range articleChannel {
+		log.Println("-- Consuming chunk")
+		log.Println(counter)
+		log.Println(commitSize)
+		for _, article := range articleArray {
+			if article == nil {
+				continue
+			}
 
-func committer(transactionChannel chan *gorm.DB, doneCommitting chan bool, db *gorm.DB) {
-	for tx := range transactionChannel {
-		t0 := time.Now()
-		tx.Commit()
-		t1 := time.Now()
-		fmt.Printf("The call took %v to run.\n", t1.Sub(t0))
+			counter = counter + 1
+			if counter == commitSize {
+				counter = 0
+				tc0 := time.Now()
+				tx.Commit()
+				t1 := time.Now()
+				fmt.Printf("++++++++++++ The commit took %v to run.\n", t1.Sub(tc0))
+				fmt.Printf("++++++++++++ The call took %v to run.\n", t1.Sub(t0))
+				t0 = time.Now()
+				tx = db.Begin()
+			}
+			if err := tx.Create(article).Error; err != nil {
+				tx.Rollback()
+				log.Println("\\\\\\\\\\\\\\\\")
+				log.Println(err)
+				log.Printf("PMID=%d", article.Id)
+				log.Fatal("\\\\\\\\\\\\\\\\")
+			}
+		}
 	}
-	doneCommitting <- true
+	db.Close()
+	done <- true
 }

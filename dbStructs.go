@@ -5,28 +5,29 @@ import (
 )
 
 type Article struct {
-	Abstract   string
-	Authors    []Author   `gorm:"many2many:Article_Author;"`
-	Chemicals  []Chemical `gorm:"many2many:Article_Chemical;"`
-	Citations  []Citation `gorm:"many2many:Article_Citation;"`
-	Day        int
-	Genes      []Gene `gorm:"many2many:Article_Gene;"`
-	Id         int64  `gorm:"primary_key"`
-	Issue      string
-	Journal    Journal
-	journal_id sql.NullInt64
-	Language   string
-	MeshTerms  []MeshTerm `gorm:"many2many:Article_MeshTerm;"`
-	Month      string
-	Title      string
-	Volume     string
-	Year       int
+	Abstract  string
+	Authors   []Author   `gorm:"many2many:Article_Author;"`
+	Chemicals []Chemical `gorm:"many2many:Article_Chemical;"`
+	Citations []Citation `gorm:"many2many:Article_Citation;"`
+	Day       int
+	Genes     []Gene `gorm:"many2many:Article_Gene;"`
+	Id        int64  `gorm:"primary_key"`
+	Issue     string
+	Journal   Journal
+	JournalID sql.NullInt64
+	Language  string
+	MeshTerms []MeshTerm `gorm:"many2many:Article_MeshTerm;"`
+	Month     string
+	Title     string
+	Volume    string
+	Year      int
 }
 
 type Journal struct {
-	Id    int `gorm:"primary_key"`
-	Title string
-	Issn  string
+	ID       int `gorm:"primary_key"`
+	Title    string
+	Issn     string
+	Articles []Article
 }
 
 type Author struct {

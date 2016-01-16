@@ -7,12 +7,14 @@ import (
 	"log"
 )
 
-func dbInit() (*gorm.DB, error) {
+func dbOpen() (*gorm.DB, error) {
 	//db, err := gorm.Open("sqlite3", "/tmp/gorm_15000-x.db")
 
 	//db, err := gorm.Open("mysql", "gnewton:@/pubmed?charset=utf8&parseTime=True&loc=Local")
-	db, err := gorm.Open("sqlite3", "/run/media/gnewton/b2b3f4a1-59af-4860-a100-305ecec24f03/sqlite3/gorm4-test.db")
-	//db, err := gorm.Open("sqlite3", "/tmp/gorm4.db")
+	//db, err := gorm.Open("sqlite3", "/run/media/gnewton/b2b3f4a1-59af-4860-a100-305ecec24f03/sqlite3/gorm4-test.db")
+	//db, err := gorm.Open("sqlite3", "/tmp/gorm4_tmp.db")
+	//db, err := gorm.Open("sqlite3", "/run/media/gnewton/f34c5c5b-48de-4ae1-8ef2-28e95139cb06/tmp/gorm_all2.db")
+	db, err := gorm.Open("sqlite3", dbFileName)
 	if err != nil {
 		log.Println(err)
 		return nil, err
@@ -24,6 +26,33 @@ func dbInit() (*gorm.DB, error) {
 	db.DB().SetMaxIdleConns(10)
 	db.DB().SetMaxOpenConns(100)
 
+	db.DB()
+	db.DB().Ping()
+	db.DB().SetMaxIdleConns(10)
+	db.DB().SetMaxOpenConns(100)
+	db.Exec("PRAGMA cache_size = 1800000;").Exec("PRAGMA synchronous = OFF;")
+	//db.Exec("PRAGMA journal_mode = OFF;")
+	//db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
+	db.Exec("PRAGMA count_changes = OFF;")
+	db.Exec("PRAGMA temp_store = MEMORY;")
+	db.Exec("PRAGMA journal_mode = MEMORY;")
+	//db.Exec("PRAGMA auto_vacuum = NONE;")
+	//db.Exec("PRAGMA cache_size=16;")
+	db.Exec("PRAGMA page_size = 4096;")
+	db.Exec("PRAGMA threads = 5;")
+	//db.Exec("PRAGMA mmap_size=12884901888;")
+	//db.Exec("PRAGMA mmap_size=1099511627776;")
+	db.Exec("PRAGMA mmap_size=0;")
+	return &db, nil
+}
+
+func dbInit() (*gorm.DB, error) {
+	db, err := dbOpen()
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
 	db.CreateTable(&Article{})
 	db.CreateTable(&Author{})
 	db.CreateTable(&Chemical{})
@@ -32,27 +61,24 @@ func dbInit() (*gorm.DB, error) {
 	db.CreateTable(&Journal{})
 	db.CreateTable(&MeshTerm{})
 
-	db.Exec("PRAGMA cache_size = 1800000;").Exec("PRAGMA synchronous = OFF;")
-	//db.Exec("PRAGMA journal_mode = OFF;")
-	db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
-	db.Exec("PRAGMA count_changes = OFF;")
-	db.Exec("PRAGMA temp_store = MEMORY;")
-	//db.Exec("PRAGMA auto_vacuum = NONE;")
-	db.Exec("PRAGMA cache_size=16;")
-	db.Exec("PRAGMA page_size = 65536;")
-	db.Exec("PRAGMA threads = 5;")
+	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
 
-	//db.Exec("PRAGMA mmap_size=12884901888;")
-	db.Exec("PRAGMA mmap_size=0;")
+	return db, nil
+}
 
+func makeIndexes(db *gorm.DB) {
+	log.Println("makeing indexes START")
 	db.Table("Article_Author").AddUniqueIndex("articleAuthor", "article_id", "author_id")
 	db.Table("Article_Chemical").AddUniqueIndex("articleChemical", "article_id", "chemical_id")
 	db.Table("Article_Citation").AddUniqueIndex("articleCitation", "article_id", "citation_id")
 	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
 	db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
+	log.Println("makeing indexes END")
+}
 
-	//return &db, nil
-	return &db, nil
+func dbCloseOpen(prevDb *gorm.DB) (*gorm.DB, error) {
+	prevDb.Close()
+	return dbOpen()
 }
 
 //func foo(db gorm.DB) chan *Article {

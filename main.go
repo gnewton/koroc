@@ -7,7 +7,9 @@ package main
 import (
 	"encoding/xml"
 	"flag"
-	"fmt"
+	"io"
+	"io/ioutil"
+	"strings"
 	//"github.com/davecheney/profile"
 	"github.com/jinzhu/gorm"
 	"log"
@@ -34,18 +36,22 @@ var counters map[string]*int
 var closeOpenCount int64 = 0
 
 func init() {
-
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
 	flag.StringVar(&dbFileName, "f", dbFileName, "SQLite output filename")
 
 	flag.IntVar(&TransactionSize, "t", TransactionSize, "Size of transactions")
 	flag.IntVar(&chunkSize, "C", chunkSize, "Size of chunks")
 	flag.Int64Var(&CloseOpenSize, "z", CloseOpenSize, "Num of records before sqlite connection is closed then reopened")
+
 	flag.Parse()
+
 	if len(flag.Args()) == 0 {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 }
 
 func main() {
@@ -54,7 +60,7 @@ func main() {
 
 	db, err := dbInit()
 	if err != nil {
-		log.Fatal(err)
+		Error.Fatal(err)
 		return
 	}
 	defer func() {
@@ -76,11 +82,13 @@ func main() {
 	var articleArray []*Article
 
 	for i, filename := range flag.Args() {
-		if i == 0 {
-			continue
-		}
-		log.Println("Opening: "+filename, " ", i, " of ", len(os.Args))
-		log.Println(strconv.Itoa(i) + " of " + strconv.Itoa(len(os.Args)-1))
+		log.Println(i, " -- Input file: "+filename)
+	}
+
+	for i, filename := range flag.Args() {
+
+		log.Println("Opening: "+filename, " ", i+1, " of ", len(flag.Args()))
+		//log.Println(strconv.Itoa(i) + " of " + strconv.Itoa(len(flag.Args)-1))
 		reader, _, err := genericReader(filename)
 
 		if err != nil {
@@ -151,9 +159,12 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 		log.Println("nil-----------")
 		return nil
 	}
-
+	var err error
 	dbArticle := new(Article)
-	dbArticle.Id, _ = strconv.ParseInt(p.ChiMedlineCitation.ChiPMID.Text, 10, 64)
+	dbArticle.Id, err = strconv.ParseInt(p.ChiMedlineCitation.ChiPMID.Text, 10, 64)
+	if err != nil {
+		log.Println(err)
+	}
 	dbArticle.Abstract = ""
 	//if pArticle !=pArticle.ChiAbstract != nil && pArticle.ChiAbstract.ChiAbstractText != nil {
 	if pArticle.ChiAbstract != nil && pArticle.ChiAbstract.ChiAbstractText != nil {
@@ -163,10 +174,44 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 	}
 
 	dbArticle.Title = pArticle.ChiArticleTitle.Text
-	if pArticle.ChiArticleDate != nil {
-		dbArticle.Year, _ = strconv.Atoi(pArticle.ChiArticleDate.ChiYear.Text)
-		dbArticle.Month = pArticle.ChiArticleDate.ChiMonth.Text
-		dbArticle.Day, _ = strconv.Atoi(pArticle.ChiArticleDate.ChiDay.Text)
+
+	if pArticle.ChiJournal != nil {
+		if pArticle.ChiJournal.ChiJournalIssue != nil {
+			if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate != nil {
+				if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiYear != nil {
+					dbArticle.Year, err = strconv.Atoi(pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiYear.Text)
+					if err != nil {
+						log.Println(err)
+					}
+				} else {
+					if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate == nil || pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate.Text == "" {
+						log.Println("MedlineDate is nil? ", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate)
+					} else {
+						dbArticle.Year = medlineDate2Year(pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate.Text)
+					}
+				}
+				if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMonth != nil {
+					dbArticle.Month = pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMonth.Text
+				}
+				if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiDay != nil {
+					dbArticle.Day, err = strconv.Atoi(pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiDay.Text)
+					if err != nil {
+						log.Println(err)
+					}
+
+				}
+			} else {
+				log.Println("ChiJournal.ChiJournalIssue.ChiPubDate=nil pmid=", dbArticle.Id)
+			}
+			if dbArticle.Year == 0 {
+				log.Println("*******************************************")
+				log.Println("Year=0 ", dbArticle.Id)
+				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue)
+				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate)
+				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate)
+				log.Println("*******************************************")
+			}
+		}
 	}
 
 	if medlineCitation.ChiCommentsCorrectionsList != nil {
@@ -179,10 +224,14 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 
 		dbArticle.Citations = make([]Citation, actualCitationCount)
 		counter := 0
+		var err error
 		for _, commentsCorrection := range medlineCitation.ChiCommentsCorrectionsList.ChiCommentsCorrections {
 			if commentsCorrection.Attr_RefType == CommentsCorrections_RefType {
 				citation := new(Citation)
-				citation.Pmid, _ = strconv.ParseInt(commentsCorrection.ChiPMID.Text, 10, 64)
+				citation.Pmid, err = strconv.ParseInt(commentsCorrection.ChiPMID.Text, 10, 64)
+				if err != nil {
+					log.Println(err)
+				}
 				citation.RefSource = commentsCorrection.ChiRefSource.Text
 				dbArticle.Citations[counter] = *citation
 				counter = counter + 1
@@ -271,7 +320,7 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 		for i := 0; i < len(tmp); i++ {
 			article := tmp[i]
 			if article == nil {
-				log.Println(i, " ******** Article is nil")
+				//log.Println(i, " ******** Article is nil")
 				continue
 			}
 
@@ -282,8 +331,8 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 				tc0 := time.Now()
 				tx.Commit()
 				t1 := time.Now()
-				fmt.Printf("++++++++++++ The commit took %v to run.\n", t1.Sub(tc0))
-				fmt.Printf("++++++++++++ The call took %v to run.\n", t1.Sub(t0))
+				log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
+				log.Printf("The call took %v to run.\n", t1.Sub(t0))
 				t0 = time.Now()
 				counter = 0
 
@@ -319,4 +368,66 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 	makeIndexes(db)
 	db.Close()
 	done <- true
+}
+
+// From: http://www.goinggo.net/2013/11/using-log-package-in-go.html
+var (
+	Trace   *log.Logger
+	Info    *log.Logger
+	Warning *log.Logger
+	Error   *log.Logger
+)
+
+func logInit(
+	traceHandle io.Writer,
+	infoHandle io.Writer,
+	warningHandle io.Writer,
+	errorHandle io.Writer) {
+
+	Trace = log.New(traceHandle,
+		"TRACE: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Info = log.New(infoHandle,
+		"INFO: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Warning = log.New(warningHandle,
+		"WARNING: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Error = log.New(errorHandle,
+		"ERROR: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+}
+
+func medlineDate2Year(md string) int {
+	var year int
+	var err error
+	// case 2000-2001
+	if string(md[4]) == string('-') {
+		yearStrings := strings.Split(md, "-")
+		//case 1999-00
+		if len(yearStrings[1]) != 4 {
+			year, err = strconv.Atoi(yearStrings[0])
+		} else {
+			year, err = strconv.Atoi(yearStrings[1])
+		}
+		if err != nil {
+			log.Println("error!! ", err)
+		}
+	} else {
+		// case 1999 June 6
+		yearString := strings.TrimSpace(strings.Split(md, " ")[0])
+		yearString = yearString[0:3]
+		year, err = strconv.Atoi(strings.TrimSpace(strings.Split(md, " ")[0]))
+		if err != nil {
+			log.Println("error!! ", err)
+		}
+	}
+	if year == 0 {
+		log.Println("medlineDate2Year ", year, md, " [", strings.TrimSpace(string(md[4])), "]")
+	}
+	return year
+
 }

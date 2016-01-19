@@ -19,6 +19,7 @@ func dbOpen() (*gorm.DB, error) {
 		log.Println(err)
 		return nil, err
 	}
+	log.Println("Opening db file: ", dbFileName)
 	//db.LogMode(true)
 
 	db.DB()
@@ -31,11 +32,18 @@ func dbOpen() (*gorm.DB, error) {
 	db.DB().SetMaxIdleConns(10)
 	db.DB().SetMaxOpenConns(100)
 	db.Exec("PRAGMA cache_size = 1800000;").Exec("PRAGMA synchronous = OFF;")
-	//db.Exec("PRAGMA journal_mode = OFF;")
+	db.Exec("PRAGMA journal_mode = OFF;")
+
+	db.Exec("PRAGMA auto_vacuum = 0;")
+	db.Exec("PRAGMA encoding = \"UTF-8\";")
+	db.Exec("PRAGMA quick_check;")
+	db.Exec("PRAGMA shrink_memory")
+	db.Exec("PRAGMA synchronous = 0")
+
 	//db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
 	db.Exec("PRAGMA count_changes = OFF;")
 	db.Exec("PRAGMA temp_store = MEMORY;")
-	db.Exec("PRAGMA journal_mode = MEMORY;")
+	//db.Exec("PRAGMA journal_mode = MEMORY;")
 	//db.Exec("PRAGMA auto_vacuum = NONE;")
 	//db.Exec("PRAGMA cache_size=16;")
 	db.Exec("PRAGMA page_size = 4096;")
@@ -73,6 +81,9 @@ func makeIndexes(db *gorm.DB) {
 	db.Table("Article_Citation").AddUniqueIndex("articleCitation", "article_id", "citation_id")
 	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
 	db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
+	db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
+	db.Table("articles").AddIndex("articlesYear", "year")
+	db.Table("articles").AddIndex("articlesJournalId", "journal_id")
 	log.Println("makeing indexes END")
 }
 

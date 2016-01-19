@@ -20,7 +20,9 @@ func dbOpen() (*gorm.DB, error) {
 		return nil, err
 	}
 	log.Println("Opening db file: ", dbFileName)
-	//db.LogMode(true)
+	if sqliteLogFlag {
+		db.LogMode(true)
+	}
 
 	db.DB()
 	db.DB().Ping()
@@ -40,13 +42,11 @@ func dbOpen() (*gorm.DB, error) {
 	db.Exec("PRAGMA shrink_memory")
 	db.Exec("PRAGMA synchronous = 0")
 
-	//db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
 	db.Exec("PRAGMA count_changes = OFF;")
 	db.Exec("PRAGMA temp_store = MEMORY;")
-	//db.Exec("PRAGMA journal_mode = MEMORY;")
 	//db.Exec("PRAGMA auto_vacuum = NONE;")
-	//db.Exec("PRAGMA cache_size=16;")
-	db.Exec("PRAGMA page_size = 4096;")
+	db.Exec("PRAGMA cache_size=10000;")
+	db.Exec("PRAGMA page_size = 32768;")
 	db.Exec("PRAGMA threads = 5;")
 	//db.Exec("PRAGMA mmap_size=12884901888;")
 	//db.Exec("PRAGMA mmap_size=1099511627776;")

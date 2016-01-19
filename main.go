@@ -17,6 +17,7 @@ import (
 	"os"
 	"strconv"
 	//"strings"
+	"math"
 	"time"
 )
 
@@ -26,6 +27,8 @@ var CloseOpenSize int64 = 500000
 var chunkChannelSize = 5
 var dbFileName = "./pubmed_sqlite.db"
 var sqliteLogFlag = false
+var LoadNRecordsPerFile int64 = math.MaxInt64
+var recordPerFileCounter int64 = 0
 
 const CommentsCorrections_RefType = "Cites"
 const PUBMED_ARTICLE = "PubmedArticle"
@@ -43,6 +46,8 @@ func init() {
 	flag.IntVar(&TransactionSize, "t", TransactionSize, "Size of transactions")
 	flag.IntVar(&chunkSize, "C", chunkSize, "Size of chunks")
 	flag.Int64Var(&CloseOpenSize, "z", CloseOpenSize, "Num of records before sqlite connection is closed then reopened")
+	flag.Int64Var(&LoadNRecordsPerFile, "N", LoadNRecordsPerFile, "Load only N records from each file")
+	flag.BoolVar(&sqliteLogFlag, "V", sqliteLogFlag, "Turn on sqlite logging")
 
 	flag.Parse()
 
@@ -75,7 +80,7 @@ func main() {
 	done := make(chan bool)
 
 	go articleAdder(articleChannel, done, db, TransactionSize)
-	count := 0
+	var count int64 = 0
 	chunkCount := 0
 	arrayIndex := 0
 
@@ -85,6 +90,7 @@ func main() {
 		log.Println(i, " -- Input file: "+filename)
 	}
 
+	// Loop through files
 	for i, filename := range flag.Args() {
 
 		log.Println("Opening: "+filename, " ", i+1, " of ", len(flag.Args()))
@@ -95,13 +101,19 @@ func main() {
 			log.Fatal(err)
 			return
 		}
+		arrayIndex = 0
 		articleArray = make([]*Article, chunkSize)
 
 		decoder := xml.NewDecoder(reader)
 		counters = make(map[string]*int)
 
+		// Loop through XML
 		for {
-
+			if recordPerFileCounter == LoadNRecordsPerFile {
+				log.Println("break file load. LoadNRecordsPerFile", count, LoadNRecordsPerFile)
+				recordPerFileCounter = 0
+				break
+			}
 			token, _ := decoder.Token()
 			if token == nil {
 				break
@@ -117,7 +129,7 @@ func main() {
 					}
 
 					count = count + 1
-
+					recordPerFileCounter = recordPerFileCounter + 1
 					var pubmedArticle ChiPubmedArticle
 					decoder.DecodeElement(&pubmedArticle, &se)
 					article := pubmedArticleToDbArticle(&pubmedArticle)
@@ -125,11 +137,10 @@ func main() {
 						log.Println("-----------------nil")
 						continue
 					}
-					//log.Printf("%d\n", article.Id)
 					articleArray[arrayIndex] = article
 					arrayIndex = arrayIndex + 1
 					if arrayIndex >= chunkSize {
-						log.Printf("Sending chunk %d", chunkCount)
+						//log.Printf("Sending chunk %d", chunkCount)
 						chunkCount = chunkCount + 1
 						//pubmedArticleChannel <- &pubmedArticle
 						//log.Printf("%v\n", articleArray)
@@ -140,11 +151,14 @@ func main() {
 					}
 				}
 			}
-		}
-	}
 
-	if arrayIndex > 0 && arrayIndex < chunkSize {
-		articleChannel <- articleArray
+		}
+		log.Println("arrayIndex", arrayIndex, "chunkSize", chunkSize)
+		if arrayIndex > 0 && arrayIndex < chunkSize {
+			log.Println("**Sending remainder to channel")
+			articleChannel <- articleArray
+			chunkCount = chunkCount + 1
+		}
 	}
 
 	close(articleChannel)

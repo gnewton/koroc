@@ -9,9 +9,12 @@ import (
 	"flag"
 	"io"
 	"io/ioutil"
+	_ "net/http/pprof"
 	"strings"
 	//"github.com/davecheney/profile"
 	"github.com/jinzhu/gorm"
+	"net/http"
+
 	"log"
 	//	"net/http"
 	"os"
@@ -21,10 +24,10 @@ import (
 	"time"
 )
 
-var TransactionSize = 100000
+var TransactionSize = 50000
 var chunkSize = 10000
 var CloseOpenSize int64 = 500000
-var chunkChannelSize = 5
+var chunkChannelSize = 1
 var dbFileName = "./pubmed_sqlite.db"
 var sqliteLogFlag = false
 var LoadNRecordsPerFile int64 = math.MaxInt64
@@ -39,6 +42,7 @@ var counters map[string]*int
 var closeOpenCount int64 = 0
 
 func init() {
+	defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
 	flag.StringVar(&dbFileName, "f", dbFileName, "SQLite output filename")
@@ -60,7 +64,9 @@ func init() {
 }
 
 func main() {
-
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	//defer profile.Start(profile.CPUProfile).Stop()
 
 	db, err := dbInit()
@@ -153,9 +159,7 @@ func main() {
 			}
 
 		}
-		log.Println("arrayIndex", arrayIndex, "chunkSize", chunkSize)
 		if arrayIndex > 0 && arrayIndex < chunkSize {
-			log.Println("**Sending remainder to channel")
 			articleChannel <- articleArray
 			chunkCount = chunkCount + 1
 		}
@@ -434,7 +438,8 @@ func medlineDate2Year(md string) int {
 		// case 1999 June 6
 		yearString := strings.TrimSpace(strings.Split(md, " ")[0])
 		yearString = yearString[0:3]
-		year, err = strconv.Atoi(strings.TrimSpace(strings.Split(md, " ")[0]))
+		//year, err = strconv.Atoi(strings.TrimSpace(strings.Split(md, " ")[0]))
+		year, err = strconv.Atoi(yearString)
 		if err != nil {
 			log.Println("error!! ", err)
 		}

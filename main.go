@@ -42,7 +42,7 @@ var counters map[string]*int
 var closeOpenCount int64 = 0
 
 func init() {
-	defer profile.Start(profile.CPUProfile).Stop()
+	//defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
 	flag.StringVar(&dbFileName, "f", dbFileName, "SQLite output filename")

@@ -54,6 +54,7 @@ func dbInit() (*gorm.DB, error) {
 		log.Println(err)
 		return nil, err
 	}
+	log.Printf("%v\n", *db)
 
 	db.CreateTable(&Article{})
 	db.CreateTable(&Author{})

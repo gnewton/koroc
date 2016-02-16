@@ -9,7 +9,7 @@ import (
 	"flag"
 	"io"
 	"io/ioutil"
-	_ "net/http/pprof"
+	//_ "net/http/pprof"
 	"strings"
 	//"github.com/davecheney/profile"
 	"github.com/jinzhu/gorm"
@@ -24,14 +24,15 @@ import (
 	"time"
 )
 
-var TransactionSize = 50000
-var chunkSize = 10000
-var CloseOpenSize int64 = 500000
-var chunkChannelSize = 1
+var TransactionSize = 5000
+var chunkSize = 1000
+var CloseOpenSize int64 = 99950000
+var chunkChannelSize = 3
 var dbFileName = "./pubmed_sqlite.db"
 var sqliteLogFlag = false
 var LoadNRecordsPerFile int64 = math.MaxInt64
 var recordPerFileCounter int64 = 0
+var doNotWriteToDbFlag = false
 
 const CommentsCorrections_RefType = "Cites"
 const PUBMED_ARTICLE = "PubmedArticle"
@@ -42,7 +43,7 @@ var counters map[string]*int
 var closeOpenCount int64 = 0
 
 func init() {
-	defer profile.Start(profile.CPUProfile).Stop()
+	//defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
 	flag.StringVar(&dbFileName, "f", dbFileName, "SQLite output filename")
@@ -52,6 +53,8 @@ func init() {
 	flag.Int64Var(&CloseOpenSize, "z", CloseOpenSize, "Num of records before sqlite connection is closed then reopened")
 	flag.Int64Var(&LoadNRecordsPerFile, "N", LoadNRecordsPerFile, "Load only N records from each file")
 	flag.BoolVar(&sqliteLogFlag, "V", sqliteLogFlag, "Turn on sqlite logging")
+
+	flag.BoolVar(&doNotWriteToDbFlag, "X", doNotWriteToDbFlag, "Do not write to db. Rolls back transaction. For debugging")
 
 	flag.Parse()
 
@@ -198,9 +201,11 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 			if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate != nil {
 				if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiYear != nil {
 					dbArticle.Year, err = strconv.Atoi(pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiYear.Text)
+
 					if err != nil {
 						log.Println(err)
 					}
+
 				} else {
 					if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate == nil || pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate.Text == "" {
 						log.Println("MedlineDate is nil? ", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate)
@@ -216,17 +221,20 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 					if err != nil {
 						log.Println(err)
 					}
-
 				}
 			} else {
 				log.Println("ChiJournal.ChiJournalIssue.ChiPubDate=nil pmid=", dbArticle.Id)
 			}
-			if dbArticle.Year == 0 {
+			if dbArticle.Year < 1000 {
 				log.Println("*******************************************")
-				log.Println("Year=0 ", dbArticle.Id)
+				log.Println("Year=Error ", dbArticle.Id)
+				log.Println(dbArticle.Year)
 				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue)
-				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate)
-				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate)
+
+				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiYear)
+				if pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate != nil {
+					log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue.ChiPubDate.ChiMedlineDate.Text)
+				}
 				log.Println("*******************************************")
 			}
 		}
@@ -314,6 +322,9 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 			if author.ChiForeName != nil {
 				dbAuthor.FirstName = author.ChiForeName.Text
 			}
+			if author.ChiAffiliation != nil {
+				dbAuthor.Affiliation = author.ChiAffiliation.Text
+			}
 			dbArticle.Authors[i] = *dbAuthor
 		}
 	}
@@ -333,7 +344,12 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 
 		log.Printf("articleAdder counter=%d", counter)
 		log.Printf("TOTAL counter=%d", totalCount)
+
 		log.Println(commitSize)
+		if doNotWriteToDbFlag {
+			continue
+		}
+
 		tmp := articleArray
 		for i := 0; i < len(tmp); i++ {
 			article := tmp[i]
@@ -379,11 +395,14 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 				//return
 				tx = db.Begin()
 			}
+
 		}
 		log.Println("-- END chunk ", chunkCount)
 	}
-	tx.Commit()
-	makeIndexes(db)
+	if !doNotWriteToDbFlag {
+		tx.Commit()
+		makeIndexes(db)
+	}
 	db.Close()
 	done <- true
 }
@@ -420,6 +439,7 @@ func logInit(
 }
 
 func medlineDate2Year(md string) int {
+	// case <MedlineDate>1952 Mar-Apr</MedlineDate>
 	var year int
 	var err error
 	// case 2000-2001
@@ -437,7 +457,7 @@ func medlineDate2Year(md string) int {
 	} else {
 		// case 1999 June 6
 		yearString := strings.TrimSpace(strings.Split(md, " ")[0])
-		yearString = yearString[0:3]
+		yearString = yearString[0:4]
 		//year, err = strconv.Atoi(strings.TrimSpace(strings.Split(md, " ")[0]))
 		year, err = strconv.Atoi(yearString)
 		if err != nil {

@@ -41,18 +41,14 @@ type ChiAuthorList struct {
 }
 
 type ChiAuthor struct {
-	Attr_ValidYN       string                `xml:" ValidYN,attr"  json:",omitempty"`
-	ChiAffiliationInfo []*ChiAffiliationInfo `xml:" AffiliationInfo,omitempty" json:"AffiliationInfo,omitempty"`
-	ChiCollectiveName  *ChiCollectiveName    `xml:" CollectiveName,omitempty" json:"CollectiveName,omitempty"`
-	ChiForeName        *ChiForeName          `xml:" ForeName,omitempty" json:"ForeName,omitempty"`
-	ChiIdentifier      *ChiIdentifier        `xml:" Identifier,omitempty" json:"Identifier,omitempty"`
-	ChiInitials        *ChiInitials          `xml:" Initials,omitempty" json:"Initials,omitempty"`
-	ChiLastName        *ChiLastName          `xml:" LastName,omitempty" json:"LastName,omitempty"`
-	ChiSuffix          *ChiSuffix            `xml:" Suffix,omitempty" json:"Suffix,omitempty"`
-}
-
-type ChiAffiliationInfo struct {
-	ChiAffiliation *ChiAffiliation `xml:" Affiliation,omitempty" json:"Affiliation,omitempty"`
+	Attr_ValidYN      string             `xml:" ValidYN,attr"  json:",omitempty"`
+	ChiAffiliation    *ChiAffiliation    `xml:" Affiliation,omitempty" json:"Affiliation,omitempty"`
+	ChiCollectiveName *ChiCollectiveName `xml:" CollectiveName,omitempty" json:"CollectiveName,omitempty"`
+	ChiForeName       *ChiForeName       `xml:" ForeName,omitempty" json:"ForeName,omitempty"`
+	ChiIdentifier     *ChiIdentifier     `xml:" Identifier,omitempty" json:"Identifier,omitempty"`
+	ChiInitials       *ChiInitials       `xml:" Initials,omitempty" json:"Initials,omitempty"`
+	ChiLastName       *ChiLastName       `xml:" LastName,omitempty" json:"LastName,omitempty"`
+	ChiSuffix         *ChiSuffix         `xml:" Suffix,omitempty" json:"Suffix,omitempty"`
 }
 
 type ChiAffiliation struct {
@@ -345,12 +341,12 @@ type ChiInvestigatorList struct {
 }
 
 type ChiInvestigator struct {
-	Attr_ValidYN       string                `xml:" ValidYN,attr"  json:",omitempty"`
-	ChiAffiliationInfo []*ChiAffiliationInfo `xml:" AffiliationInfo,omitempty" json:"AffiliationInfo,omitempty"`
-	ChiForeName        *ChiForeName          `xml:" ForeName,omitempty" json:"ForeName,omitempty"`
-	ChiInitials        *ChiInitials          `xml:" Initials,omitempty" json:"Initials,omitempty"`
-	ChiLastName        *ChiLastName          `xml:" LastName,omitempty" json:"LastName,omitempty"`
-	ChiSuffix          *ChiSuffix            `xml:" Suffix,omitempty" json:"Suffix,omitempty"`
+	Attr_ValidYN   string          `xml:" ValidYN,attr"  json:",omitempty"`
+	ChiAffiliation *ChiAffiliation `xml:" Affiliation,omitempty" json:"AffiliationInfo,omitempty"`
+	ChiForeName    *ChiForeName    `xml:" ForeName,omitempty" json:"ForeName,omitempty"`
+	ChiInitials    *ChiInitials    `xml:" Initials,omitempty" json:"Initials,omitempty"`
+	ChiLastName    *ChiLastName    `xml:" LastName,omitempty" json:"LastName,omitempty"`
+	ChiSuffix      *ChiSuffix      `xml:" Suffix,omitempty" json:"Suffix,omitempty"`
 }
 
 type ChiOtherAbstract struct {

@@ -182,7 +182,7 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 	}
 	var err error
 	dbArticle := new(Article)
-	dbArticle.Id, err = strconv.ParseInt(p.ChiMedlineCitation.ChiPMID.Text, 10, 64)
+	dbArticle.ID, err = strconv.ParseInt(p.ChiMedlineCitation.ChiPMID.Text, 10, 64)
 	if err != nil {
 		log.Println(err)
 	}
@@ -223,11 +223,11 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 					}
 				}
 			} else {
-				log.Println("ChiJournal.ChiJournalIssue.ChiPubDate=nil pmid=", dbArticle.Id)
+				log.Println("ChiJournal.ChiJournalIssue.ChiPubDate=nil pmid=", dbArticle.ID)
 			}
 			if dbArticle.Year < 1000 {
 				log.Println("*******************************************")
-				log.Println("Year=Error ", dbArticle.Id)
+				log.Println("Year=Error ", dbArticle.ID)
 				log.Println(dbArticle.Year)
 				log.Printf("%+v\n", pArticle.ChiJournal.ChiJournalIssue)
 
@@ -347,6 +347,8 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 
 		log.Println(commitSize)
 		if doNotWriteToDbFlag {
+			counter = counter + len(articleArray)
+			totalCount = totalCount + int64(len(articleArray))
 			continue
 		}
 
@@ -386,7 +388,7 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 				tx.Rollback()
 				log.Println("\\\\\\\\\\\\\\\\")
 				log.Println("[", err, "]")
-				log.Printf("PMID=%d", article.Id)
+				log.Printf("PMID=%d", article.ID)
 				//if !strings.HasSuffix(err.Error(), "PRIMARY KEY must be unique") {
 				//continue
 				//}

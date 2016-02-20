@@ -27,24 +27,19 @@ func dbOpen() (*gorm.DB, error) {
 	db.DB().Ping()
 	db.DB().SetMaxIdleConns(10)
 	db.DB().SetMaxOpenConns(100)
-	db.Exec("PRAGMA cache_size = 1800000;").Exec("PRAGMA synchronous = OFF;")
-	db.Exec("PRAGMA journal_mode = OFF;")
 
 	db.Exec("PRAGMA auto_vacuum = 0;")
+	db.Exec("PRAGMA cache_size=10000;")
+	db.Exec("PRAGMA count_changes = OFF;")
 	db.Exec("PRAGMA encoding = \"UTF-8\";")
+	db.Exec("PRAGMA journal_mode = WAL;")
+	db.Exec("PRAGMA mmap_size=1099511627776;")
+	db.Exec("PRAGMA page_size = 4096;")
 	db.Exec("PRAGMA quick_check;")
 	db.Exec("PRAGMA shrink_memory")
-	db.Exec("PRAGMA synchronous = 0")
-
-	db.Exec("PRAGMA count_changes = OFF;")
+	db.Exec("PRAGMA synchronous = NORMAL;")
 	db.Exec("PRAGMA temp_store = MEMORY;")
-	//db.Exec("PRAGMA auto_vacuum = NONE;")
-	//db.Exec("PRAGMA cache_size=10000;")
-	//db.Exec("PRAGMA page_size = 32768;")
 	db.Exec("PRAGMA threads = 5;")
-	//db.Exec("PRAGMA mmap_size=12884901888;")
-	db.Exec("PRAGMA mmap_size=1099511627776;")
-	//db.Exec("PRAGMA mmap_size=0;")
 	return &db, nil
 }
 

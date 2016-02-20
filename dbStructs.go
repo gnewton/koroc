@@ -11,12 +11,12 @@ type Article struct {
 	Citations []Citation `gorm:"many2many:Article_Citation;"`
 	Day       int
 	Genes     []Gene `gorm:"many2many:Article_Gene;"`
-	Id        int64  `gorm:"primary_key"`
+	ID        int64  `gorm:"primary_key"` // PMID
 	Issue     string
 	Journal   Journal
 	JournalID sql.NullInt64
 	Language  string
-	MeshTerms []MeshTerm `gorm:"many2many:Article_MeshTerm;"`
+	MeshTerms []MeshTerm
 	Month     string
 	Title     string
 	Volume    string
@@ -31,7 +31,7 @@ type Journal struct {
 }
 
 type Author struct {
-	Id          int `gorm:"primary_key"`
+	ID          int `gorm:"primary_key"`
 	LastName    string
 	FirstName   string
 	MiddleName  string
@@ -39,24 +39,25 @@ type Author struct {
 }
 
 type MeshTerm struct {
-	Id         int `gorm:"primary_key"`
+	ID         int   `gorm:"primary_key"`
+	ArticleID  int64 `sql:"index"`
 	Descriptor string
 	Qualifier  string
 }
 
 type Gene struct {
-	Id   int `gorm:"primary_key"`
+	ID   int `gorm:"primary_key"`
 	Name string
 }
 
 type Chemical struct {
-	Id       int `gorm:"primary_key"`
+	ID       int `gorm:"primary_key"`
 	Name     string
 	Registry string
 }
 
 type Citation struct {
-	Id        int64 `gorm:"primary_key"`
+	ID        int64 `gorm:"primary_key"`
 	RefSource string
 	Pmid      int64
 }

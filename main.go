@@ -277,15 +277,15 @@ func pubmedArticleToDbArticle(p *ChiPubmedArticle) *Article {
 
 	}
 
-	if medlineCitation.ChiMeshHeadingList != nil {
-		dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.ChiMeshHeadingList.ChiMeshHeading))
-		for i, mesh := range medlineCitation.ChiMeshHeadingList.ChiMeshHeading {
-			dbMesh := new(MeshTerm)
-			dbMesh.Descriptor = mesh.ChiDescriptorName.Text
-			//dbMesh.Qualifier = mesh.ChiQualifierName.Text
-			dbArticle.MeshTerms[i] = *dbMesh
-		}
-	}
+	// if medlineCitation.ChiMeshHeadingList != nil {
+	// 	dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.ChiMeshHeadingList.ChiMeshHeading))
+	// 	for i, mesh := range medlineCitation.ChiMeshHeadingList.ChiMeshHeading {
+	// 		dbMesh := new(MeshTerm)
+	// 		dbMesh.Descriptor = mesh.ChiDescriptorName.Text
+	// 		//dbMesh.Qualifier = mesh.ChiQualifierName.Text
+	// 		dbArticle.MeshTerms[i] = *dbMesh
+	// 	}
+	// }
 
 	if pArticle.ChiJournal != nil {
 		//journal := Journal{}

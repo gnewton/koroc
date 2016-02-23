@@ -6,17 +6,17 @@ import (
 
 type Article struct {
 	Abstract  string
-	Authors   []Author   `gorm:"many2many:Article_Author;"`
-	Chemicals []Chemical `gorm:"many2many:Article_Chemical;"`
-	Citations []Citation `gorm:"many2many:Article_Citation;"`
+	Authors   []Author   `gorm:"many2many:article_author;"`
+	Chemicals []Chemical `gorm:"many2many:article_chemical;"`
+	Citations []Citation `gorm:"many2many:article_citation;"`
 	Day       int
-	Genes     []Gene `gorm:"many2many:Article_Gene;"`
+	Genes     []Gene `gorm:"many2many:article_gene;"`
 	ID        int64  `gorm:"primary_key"` // PMID
 	Issue     string
 	Journal   Journal
 	JournalID sql.NullInt64
 	Language  string
-	MeshTerms []MeshTerm
+	MeshTerms []MeshTerm `gorm:"many2many:article_meshterm;"`
 	Month     string
 	Title     string
 	Volume    string
@@ -39,10 +39,26 @@ type Author struct {
 }
 
 type MeshTerm struct {
-	ID         int   `gorm:"primary_key"`
-	ArticleID  int64 `sql:"index"`
-	Descriptor string
-	Qualifier  string
+	ID                   int `gorm:"primary_key"`
+	Descriptor           MeshDescriptor
+	DescriptorMajorTopic bool
+	Qualifiers           []MeshQualifier
+}
+
+type MeshDescriptor struct {
+	ID             int `gorm:"primary_key"`
+	DescriptorName string
+}
+
+type MeshQualifier struct {
+	ID                   int `gorm:"primary_key"`
+	QualifiersMajorTopic bool
+	MeshQualifierName    MeshQualifierName
+}
+
+type MeshQualifierName struct {
+	ID   int `gorm:"primary_key"`
+	Name string
 }
 
 type Gene struct {

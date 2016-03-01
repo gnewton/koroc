@@ -5,29 +5,39 @@ import (
 )
 
 type Article struct {
-	Abstract  string
-	Authors   []Author   `gorm:"many2many:article_author;"`
-	Chemicals []Chemical `gorm:"many2many:article_chemical;"`
-	Citations []Citation `gorm:"many2many:article_citation;"`
-	Day       int
-	Genes     []Gene `gorm:"many2many:article_gene;"`
-	ID        int64  `gorm:"primary_key"` // PMID
-	Issue     string
-	Journal   Journal
-	JournalID sql.NullInt64
-	Language  string
-	MeshTerms []MeshTerm `gorm:"many2many:article_meshterm;"`
-	Month     string
-	Title     string
-	Volume    string
-	Year      int
+	Abstract      string
+	Authors       []Author    `gorm:"many2many:article_author;"`
+	Chemicals     []*Chemical `gorm:"many2many:article_chemical;"`
+	Citations     []Citation  `gorm:"many2many:article_citation;"`
+	Day           int
+	Genes         []Gene `gorm:"many2many:article_gene;"`
+	ID            int64  `gorm:"primary_key"` // PMID
+	Issue         string
+	Journal       *Journal
+	JournalID     sql.NullInt64
+	Keywords      []*Keyword `gorm:"many2many:article_keyword;"`
+	KeywordsOwner string
+	Language      string
+	MeshHeadings  []MeshHeading `gorm:"many2many:article_meshheading;"`
+	Month         string
+	OtherId       []OtherID
+	Title         string
+	Volume        string
+	Year          int
+}
+
+type OtherID struct {
+	ID      int `gorm:"primary_key"`
+	Source  string
+	OtherID string
 }
 
 type Journal struct {
-	ID       int `gorm:"primary_key"`
-	Title    string
-	Issn     string
-	Articles []Article
+	ID              int `gorm:"primary_key"`
+	Articles        []Article
+	IsoAbbreviation string
+	Issn            string
+	Title           string
 }
 
 type Author struct {
@@ -38,11 +48,17 @@ type Author struct {
 	Affiliation string
 }
 
-type MeshTerm struct {
-	ID                   int `gorm:"primary_key"`
-	Descriptor           MeshDescriptor
-	DescriptorMajorTopic bool
-	Qualifiers           []MeshQualifier
+type Keyword struct {
+	ID         int `gorm:"primary_key"`
+	MajorTopic bool
+	Name       string
+}
+
+type MeshHeading struct {
+	ID         int             `gorm:"primary_key"`
+	Descriptor *MeshDescriptor `gorm:"many2many:meshheading_descriptor;"`
+	MajorTopic bool
+	Qualifiers []*MeshQualifier `gorm:"many2many:meshheading_qualifier;"`
 }
 
 type MeshDescriptor struct {
@@ -51,9 +67,9 @@ type MeshDescriptor struct {
 }
 
 type MeshQualifier struct {
-	ID                   int `gorm:"primary_key"`
-	QualifiersMajorTopic bool
-	MeshQualifierName    MeshQualifierName
+	ID                int `gorm:"primary_key"`
+	MajorTopic        bool
+	MeshQualifierName *MeshQualifierName
 }
 
 type MeshQualifierName struct {

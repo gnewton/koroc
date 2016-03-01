@@ -18,10 +18,11 @@ import (
 	"strconv"
 	//"strings"
 	"math"
-	"time"
+	//"time"
 )
 
 var TransactionSize = 5000
+
 var chunkSize = 1000
 var CloseOpenSize int64 = 99950000
 var chunkChannelSize = 3
@@ -168,6 +169,7 @@ func main() {
 	close(articleChannel)
 	_ = <-done
 
+	log.Println(journalMap)
 }
 
 func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
@@ -183,16 +185,19 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 	if err != nil {
 		log.Println(err)
 	}
+
+	// Abstract
 	dbArticle.Abstract = ""
-	//if pArticle !=pArticle.Abstract != nil && pArticle.Abstract.AbstractText != nil {
 	if pArticle.Abstract != nil && pArticle.Abstract.AbstractText != nil {
 		for i, _ := range pArticle.Abstract.AbstractText {
 			dbArticle.Abstract = dbArticle.Abstract + " " + pArticle.Abstract.AbstractText[i].Text
 		}
 	}
 
+	// Title
 	dbArticle.Title = pArticle.ArticleTitle.Text
 
+	// Date
 	if pArticle.Journal != nil {
 		if pArticle.Journal.JournalIssue != nil {
 			if pArticle.Journal.JournalIssue.PubDate != nil {
@@ -222,21 +227,20 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 			} else {
 				log.Println("Journal.JournalIssue.PubDate=nil pmid=", dbArticle.ID)
 			}
-			if dbArticle.Year < 1000 {
-				log.Println("*******************************************")
-				log.Println("Year=Error ", dbArticle.ID)
-				log.Println(dbArticle.Year)
-				log.Printf("%+v\n", pArticle.Journal.JournalIssue)
-
-				log.Printf("%+v\n", pArticle.Journal.JournalIssue.PubDate.Year)
-				if pArticle.Journal.JournalIssue.PubDate.MedlineDate != nil {
-					log.Printf("%+v\n", pArticle.Journal.JournalIssue.PubDate.MedlineDate.Text)
-				}
-				log.Println("*******************************************")
-			}
 		}
+
 	}
 
+	//if medlineCitation.OtherID != nil {
+	//dbArticle.OtherId = medlineCitation.OtherID
+	//}
+
+	if medlineCitation.KeywordList != nil && medlineCitation.KeywordList.Keyword != nil && len(medlineCitation.KeywordList.Keyword) > 0 {
+		dbArticle.Keywords = makeKeywords(medlineCitation.KeywordList.Attr_Owner, medlineCitation.KeywordList.Keyword)
+		dbArticle.KeywordsOwner = medlineCitation.KeywordList.Attr_Owner
+	}
+
+	// Citations
 	if medlineCitation.CommentsCorrectionsList != nil {
 		actualCitationCount := 0
 		for _, commentsCorrection := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
@@ -263,47 +267,37 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 
 	}
 
+	// Chemicals
 	if medlineCitation.ChemicalList != nil {
-		dbArticle.Chemicals = make([]Chemical, len(medlineCitation.ChemicalList.Chemical))
-		for i, chemical := range medlineCitation.ChemicalList.Chemical {
-			dbChemical := new(Chemical)
-			dbChemical.Name = chemical.NameOfSubstance.Text
-			dbChemical.Registry = chemical.RegistryNumber.Text
-			dbArticle.Chemicals[i] = *dbChemical
-		}
-
+		dbArticle.Chemicals = makeChemicals(medlineCitation.ChemicalList.Chemical)
 	}
 
-	// if medlineCitation.MeshHeadingList != nil {
-	// 	dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.MeshHeadingList.MeshHeading))
-	// 	for i, mesh := range medlineCitation.MeshHeadingList.MeshHeading {
-	// 		dbMesh := new(MeshTerm)
-	// 		dbMesh.Descriptor = mesh.DescriptorName.Text
-	// 		//dbMesh.Qualifier = mesh.QualifierName.Text
-	// 		dbArticle.MeshTerms[i] = *dbMesh
-	// 	}
-	// }
+	//mesh headings
+	if medlineCitation.MeshHeadingList != nil {
+		/*
+			dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.MeshHeadingList.MeshHeading))
+			for i, mesh := range medlineCitation.MeshHeadingList.MeshHeading {
+				dbMesh := new(MeshTerm)
+				dbMesh.Descriptor.DescriptorName = mesh.DescriptorName.Text
+				//dbMesh.Qualifier = mesh.QualifierName.Text
+				dbArticle.MeshTerms[i] = *dbMesh
+			}
+		*/
+	}
 
 	if pArticle.Journal != nil {
-		//journal := Journal{}
-		//db.First(&journal, 10)
-		//db.First(&user, 10)
-		//db.Where("name = ?", "hello world").First(&User{}).Error == gorm.RecordNotFound
-		//fmt.Println(pArticle.Journal.Title.Text)
-		journal := Journal{
-			Title: pArticle.Journal.Title.Text,
-		}
-		//journal := new(Journal)
-		//journal.Id = JournalIdCounter
-		//journal.Title = pArticle.Journal.Title.Text
-		if pArticle.Journal.ISSN != nil {
-			journal.Issn = pArticle.Journal.ISSN.Text
-		}
-		dbArticle.Journal = journal
-		//dbArticle.journal_id.Int64 = journal.Id
-		//dbArticle.journal_id.Valid = true
-		//JournalIdCounter = JournalIdCounter + 1
+		defer func() {
+			// recover from panic if one occured. Set err to nil otherwise.
+			err := recover()
+			if err != nil {
+				log.Println("@@@@@@@@@@@@@@@@@@@@@@@ ", dbArticle.ID)
+				log.Panic(err)
+			}
 
+		}()
+
+		foo := makeJournal(pArticle.Journal)
+		dbArticle.Journal = foo
 	}
 
 	if pArticle.AuthorList != nil {
@@ -332,7 +326,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, commitSize int) {
 	log.Println("Start articleAdder")
 	tx := db.Begin()
-	t0 := time.Now()
+	//t0 := time.Now()
 	var totalCount int64 = 0
 	counter := 0
 	chunkCount := 0
@@ -361,12 +355,12 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 			totalCount = totalCount + 1
 			closeOpenCount = closeOpenCount + 1
 			if counter == commitSize {
-				tc0 := time.Now()
+				//tc0 := time.Now()
 				tx.Commit()
-				t1 := time.Now()
-				log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
-				log.Printf("The call took %v to run.\n", t1.Sub(t0))
-				t0 = time.Now()
+				//t1 := time.Now()
+				//log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
+				//log.Printf("The call took %v to run.\n", t1.Sub(t0))
+				//t0 = time.Now()
 				counter = 0
 
 				if closeOpenCount >= CloseOpenSize {

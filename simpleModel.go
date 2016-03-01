@@ -57,7 +57,12 @@ func dbInit() (*gorm.DB, error) {
 	db.CreateTable(&Citation{})
 	db.CreateTable(&Gene{})
 	db.CreateTable(&Journal{})
-	db.CreateTable(&MeshTerm{})
+	db.CreateTable(&Keyword{})
+	db.CreateTable(&MeshDescriptor{})
+	db.CreateTable(&MeshHeading{})
+	db.CreateTable(&MeshQualifierName{})
+	db.CreateTable(&MeshQualifier{})
+	db.CreateTable(&OtherID{})
 
 	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
 
@@ -71,7 +76,8 @@ func makeIndexes(db *gorm.DB) {
 	db.Table("Article_Citation").AddUniqueIndex("articleCitation", "article_id", "citation_id")
 	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
 	db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
-	db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
+	//db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
+	db.Table("Article_Keyword").AddUniqueIndex("articleKeyword", "article_id", "keyword_id")
 	db.Table("articles").AddIndex("articlesYear", "year")
 	db.Table("articles").AddIndex("articlesJournalId", "journal_id")
 	log.Println("makeing indexes END")

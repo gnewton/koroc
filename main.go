@@ -169,7 +169,7 @@ func main() {
 	close(articleChannel)
 	_ = <-done
 
-	log.Println(journalMap)
+	//log.Println(journalMap)
 }
 
 func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
@@ -274,6 +274,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 
 	//mesh headings
 	if medlineCitation.MeshHeadingList != nil {
+		dbArticle.MeshHeadings = makeMeshHeading(medlineCitation.MeshHeadingList.MeshHeading)
 		/*
 			dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.MeshHeadingList.MeshHeading))
 			for i, mesh := range medlineCitation.MeshHeadingList.MeshHeading {

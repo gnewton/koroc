@@ -10,12 +10,15 @@ var journalMap map[string]*Journal = make(map[string]*Journal)
 func makeJournal(journal *pubmedstruct.Journal) *Journal {
 	mapKey := ""
 
-	if journal.ISOAbbreviation != nil {
-		mapKey = mapKey + journal.ISOAbbreviation.Text + "_" + journal.ISSN.Text
-	}
-
-	if journal.ISSN != nil {
-		mapKey = mapKey + "_" + journal.ISSN.Text
+	if journal.ISOAbbreviation == nil && journal.ISSN == nil {
+		mapKey = journal.Title.Text
+	} else {
+		if journal.ISOAbbreviation != nil {
+			mapKey = mapKey + journal.ISOAbbreviation.Text
+		}
+		if journal.ISSN != nil {
+			mapKey = mapKey + "_" + journal.ISSN.Text
+		}
 	}
 
 	if newJournal, ok := journalMap[mapKey]; ok {

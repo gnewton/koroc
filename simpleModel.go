@@ -60,9 +60,15 @@ func dbInit() (*gorm.DB, error) {
 	db.CreateTable(&Keyword{})
 	db.CreateTable(&MeshDescriptor{})
 	db.CreateTable(&MeshHeading{})
-	db.CreateTable(&MeshQualifierName{})
 	db.CreateTable(&MeshQualifier{})
 	db.CreateTable(&OtherID{})
+
+	db.Table("Article_Author").AddUniqueIndex("articleAuthor", "article_id", "author_id")
+	db.Table("Article_Chemical").AddUniqueIndex("articleChemical", "article_id", "chemical_id")
+	db.Table("Article_Citation").AddUniqueIndex("articleCitation", "article_id", "citation_id")
+	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
+	db.Table("Article_Keyword").AddUniqueIndex("articleKeyword", "article_id", "keyword_id")
+	db.Table("Article_MeshHeading").AddUniqueIndex("articleMeshHeading", "article_id", "mesh_heading_id")
 
 	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
 
@@ -71,13 +77,7 @@ func dbInit() (*gorm.DB, error) {
 
 func makeIndexes(db *gorm.DB) {
 	log.Println("makeing indexes START")
-	db.Table("Article_Author").AddUniqueIndex("articleAuthor", "article_id", "author_id")
-	db.Table("Article_Chemical").AddUniqueIndex("articleChemical", "article_id", "chemical_id")
-	db.Table("Article_Citation").AddUniqueIndex("articleCitation", "article_id", "citation_id")
-	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
-	db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
-	//db.Table("Article_MeshTerm").AddUniqueIndex("articleMeshTerm", "article_id", "mesh_term_id")
-	db.Table("Article_Keyword").AddUniqueIndex("articleKeyword", "article_id", "keyword_id")
+
 	db.Table("articles").AddIndex("articlesYear", "year")
 	db.Table("articles").AddIndex("articlesJournalId", "journal_id")
 	log.Println("makeing indexes END")

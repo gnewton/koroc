@@ -8,7 +8,7 @@ type Article struct {
 	Abstract      string
 	Authors       []Author    `gorm:"many2many:article_author;"`
 	Chemicals     []*Chemical `gorm:"many2many:article_chemical;"`
-	Citations     []Citation  `gorm:"many2many:article_citation;"`
+	Citations     []*Citation `gorm:"many2many:article_citation;"`
 	Day           int
 	Genes         []Gene `gorm:"many2many:article_gene;"`
 	ID            int64  `gorm:"primary_key"` // PMID
@@ -18,7 +18,7 @@ type Article struct {
 	Keywords      []*Keyword `gorm:"many2many:article_keyword;"`
 	KeywordsOwner string
 	Language      string
-	MeshHeadings  []MeshHeading `gorm:"many2many:article_meshheading;"`
+	MeshHeadings  []*MeshHeading `gorm:"many2many:article_meshheading;"`
 	Month         string
 	OtherId       []OtherID
 	Title         string
@@ -55,32 +55,32 @@ type Keyword struct {
 }
 
 type MeshHeading struct {
-	ID           int `gorm:"primary_key"`
-	Descriptor   *MeshDescriptor
-	DescriptorID int
-	MajorTopic   bool
-	Type         string
-	Qualifiers   []*MeshQualifier `gorm:"many2many:meshheading_qualifier;"`
+	ID                  int `gorm:"primary_key"`
+	Descriptor          *MeshDescriptor
+	DescriptorID        int
+	MajorTopic          bool
+	Type                string
+	Qualifier           *MeshQualifier
+	QualifierID         int
+	QualifierMajorTopic bool
 }
 
 type MeshDescriptor struct {
-	ID           int `gorm:"primary_key"`
-	Name         string
-	MeshHeadings []MeshHeading
+	ID   int `gorm:"primary_key"`
+	Name string
 }
 
 type MeshQualifier struct {
-	ID                  int `gorm:"primary_key"`
-	MajorTopic          bool
-	MeshQualifierName   *MeshQualifierName
-	MeshQualifierNameID int
+	ID   int `gorm:"primary_key"`
+	Name string
 }
 
-type MeshQualifierName struct {
-	ID             int `gorm:"primary_key"`
-	Name           string
-	MeshQualifiers []MeshQualifier
-}
+// type MeshQualifier struct {
+// 	ID                  int `gorm:"primary_key"`
+// 	MajorTopic          bool
+// 	MeshQualifierName   *MeshQualifierName
+// 	MeshQualifierNameID int
+// }
 
 type Gene struct {
 	ID   int `gorm:"primary_key"`
@@ -94,7 +94,5 @@ type Chemical struct {
 }
 
 type Citation struct {
-	ID        int64 `gorm:"primary_key"`
-	RefSource string
-	Pmid      int64
+	ID int64 `gorm:"primary_key"`
 }

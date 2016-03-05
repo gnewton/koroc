@@ -18,14 +18,15 @@ import (
 	"strconv"
 	//"strings"
 	"math"
-	//"time"
+	"time"
 )
 
-var TransactionSize = 5000
+var TransactionSize = 10000
 
 var chunkSize = 1000
 var CloseOpenSize int64 = 99950000
 var chunkChannelSize = 3
+
 var dbFileName = "./pubmed_sqlite.db"
 var sqliteLogFlag = false
 var LoadNRecordsPerFile int64 = math.MaxInt64
@@ -249,18 +250,18 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 			}
 		}
 
-		dbArticle.Citations = make([]Citation, actualCitationCount)
+		dbArticle.Citations = make([]*Citation, actualCitationCount)
 		counter := 0
 		var err error
 		for _, commentsCorrection := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
 			if commentsCorrection.Attr_RefType == CommentsCorrections_RefType {
 				citation := new(Citation)
-				citation.Pmid, err = strconv.ParseInt(commentsCorrection.PMID.Text, 10, 64)
+				citation.ID, err = strconv.ParseInt(commentsCorrection.PMID.Text, 10, 64)
 				if err != nil {
 					log.Println(err)
 				}
-				citation.RefSource = commentsCorrection.RefSource.Text
-				dbArticle.Citations[counter] = *citation
+				//citation.RefSource = commentsCorrection.RefSource.Text
+				dbArticle.Citations[counter] = citation
 				counter = counter + 1
 			}
 		}
@@ -327,7 +328,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, commitSize int) {
 	log.Println("Start articleAdder")
 	tx := db.Begin()
-	//t0 := time.Now()
+	t0 := time.Now()
 	var totalCount int64 = 0
 	counter := 0
 	chunkCount := 0
@@ -356,12 +357,12 @@ func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, c
 			totalCount = totalCount + 1
 			closeOpenCount = closeOpenCount + 1
 			if counter == commitSize {
-				//tc0 := time.Now()
+				tc0 := time.Now()
 				tx.Commit()
-				//t1 := time.Now()
-				//log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
-				//log.Printf("The call took %v to run.\n", t1.Sub(t0))
-				//t0 = time.Now()
+				t1 := time.Now()
+				log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
+				log.Printf("The call took %v to run.\n", t1.Sub(t0))
+				t0 = time.Now()
 				counter = 0
 
 				if closeOpenCount >= CloseOpenSize {

@@ -5,46 +5,50 @@ import (
 )
 
 var meshDescriptorMap map[string]*MeshDescriptor = make(map[string]*MeshDescriptor)
-var meshQualifierNameMap map[string]*MeshQualifierName = make(map[string]*MeshQualifierName)
+var meshQualifierMap map[string]*MeshQualifier = make(map[string]*MeshQualifier)
 
 func makeMeshHeading(mhs []*pubmedstruct.MeshHeading) []MeshHeading {
 	meshHeadings := make([]MeshHeading, len(mhs))
 
-	for i, mh := range mhs {
-		newMeshHeading := new(MeshHeading)
-		newMeshHeading.MajorTopic = (mh.DescriptorName.Attr_MajorTopicYN == "Y")
-		newMeshHeading.Type = mh.DescriptorName.Attr_Type
-		newMeshHeading.Descriptor = findDescriptorName(mh.DescriptorName.Text)
-		newMeshHeading.Qualifiers = makeQualifiers(mh.QualifierName)
-		meshHeadings[i] = *newMeshHeading
+	for _, mh := range mhs {
+		qualifiers, qualifierMajorTopics := makeQualifiers(mh.QualifierName)
+		for j, q := range qualifiers {
+			newMeshHeading := new(MeshHeading)
+			newMeshHeading.MajorTopic = (mh.DescriptorName.Attr_MajorTopicYN == "Y")
+			newMeshHeading.Type = mh.DescriptorName.Attr_Type
+			newMeshHeading.Descriptor = findDescriptorName(mh.DescriptorName.Text)
+			newMeshHeading.Qualifier = q
+			newMeshHeading.QualifierMajorTopic = qualifierMajorTopics[j]
+
+			meshHeadings = append(meshHeadings, *newMeshHeading)
+		}
 	}
 
 	return meshHeadings
 }
 
-func makeQualifiers(qns []*pubmedstruct.QualifierName) []*MeshQualifier {
+func makeQualifiers(qns []*pubmedstruct.QualifierName) ([]*MeshQualifier, []bool) {
 	qualifiers := make([]*MeshQualifier, len(qns))
+	majorTopics := make([]bool, len(qns))
 
 	for i, q := range qns {
-		newMeshQualifier := new(MeshQualifier)
-		newMeshQualifier.MajorTopic = (q.Attr_MajorTopicYN == "Y")
-		newMeshQualifier.MeshQualifierName = findQualifierName(q.Text)
-		qualifiers[i] = newMeshQualifier
+		qualifiers[i] = findQualifier(q.Text)
+		majorTopics[i] = (q.Attr_MajorTopicYN == "Y")
 	}
-	return qualifiers
+	return qualifiers, majorTopics
 }
 
-func findQualifierName(qualifier string) *MeshQualifierName {
-	mapKey := qualifier
+func findQualifier(qualifierName string) *MeshQualifier {
+	mapKey := qualifierName
 
-	if qualifierName, ok := meshQualifierNameMap[mapKey]; ok {
-		return qualifierName
+	if qualifier, ok := meshQualifierMap[mapKey]; ok {
+		return qualifier
 	}
 
-	qualifierName := new(MeshQualifierName)
-	qualifierName.Name = qualifier
-	meshQualifierNameMap[mapKey] = qualifierName
-	return qualifierName
+	qualifier := new(MeshQualifier)
+	qualifier.Name = qualifierName
+	meshQualifierMap[mapKey] = qualifier
+	return qualifier
 }
 
 func findDescriptorName(descriptor string) *MeshDescriptor {

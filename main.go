@@ -275,7 +275,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 
 	//mesh headings
 	if medlineCitation.MeshHeadingList != nil {
-		dbArticle.MeshHeadings = makeMeshHeading(medlineCitation.MeshHeadingList.MeshHeading)
+		dbArticle.MeshDescriptors = makeMeshDescriptors(medlineCitation.MeshHeadingList.MeshHeading)
 		/*
 			dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.MeshHeadingList.MeshHeading))
 			for i, mesh := range medlineCitation.MeshHeadingList.MeshHeading {

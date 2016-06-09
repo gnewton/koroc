@@ -56,6 +56,7 @@ type Keyword struct {
 
 type MeshDescriptor struct {
 	ID         int `gorm:"primary_key"`
+	UI	   string
 	Name       string
 	Type       string
 	MajorTopic bool
@@ -65,6 +66,7 @@ type MeshDescriptor struct {
 
 type MeshQualifier struct {
 	ID               int `gorm:"primary_key"`
+	UI	   string
 	MajorTopic       bool
 	Name             string
 	MeshDescriptorID int

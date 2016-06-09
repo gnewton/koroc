@@ -40,7 +40,7 @@ func dbOpen() (*gorm.DB, error) {
 	db.Exec("PRAGMA synchronous = NORMAL;")
 	db.Exec("PRAGMA temp_store = MEMORY;")
 	db.Exec("PRAGMA threads = 5;")
-	return &db, nil
+	return db, nil
 }
 
 func dbInit() (*gorm.DB, error) {

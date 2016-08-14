@@ -1,24 +1,24 @@
 package main
 
 import (
-	"encoding/xml"
 	"flag"
+	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
+	"github.com/jinzhu/gorm"
 	"io"
 	"io/ioutil"
-	//_ "net/http/pprof"
-	"strings"
-	//"github.com/davecheney/profile"
-	"github.com/jinzhu/gorm"
-	"net/http"
-
 	"log"
-	//	"net/http"
+	"math"
+	"net/http"
 	"os"
 	"strconv"
-	//"strings"
-	"math"
+	"strings"
 	"time"
+	//	"net/http"
+	//"github.com/davecheney/profile"
+	//"strings"
+	//_ "net/http/pprof"
+	"encoding/xml"
 )
 
 var TransactionSize = 10000
@@ -83,7 +83,7 @@ func main() {
 		}
 	}()
 
-	articleChannel := make(chan []*Article, chunkChannelSize)
+	articleChannel := make(chan []*pubmedSqlStructs.Article, chunkChannelSize)
 
 	done := make(chan bool)
 
@@ -92,7 +92,7 @@ func main() {
 	chunkCount := 0
 	arrayIndex := 0
 
-	var articleArray []*Article
+	var articleArray []*pubmedSqlStructs.Article
 
 	for i, filename := range flag.Args() {
 		log.Println(i, " -- Input file: "+filename)
@@ -110,7 +110,7 @@ func main() {
 			return
 		}
 		arrayIndex = 0
-		articleArray = make([]*Article, chunkSize)
+		articleArray = make([]*pubmedSqlStructs.Article, chunkSize)
 
 		decoder := xml.NewDecoder(reader)
 		counters = make(map[string]*int)
@@ -154,7 +154,7 @@ func main() {
 						//log.Printf("%v\n", articleArray)
 						articleChannel <- articleArray
 						log.Println("Sent")
-						articleArray = make([]*Article, chunkSize)
+						articleArray = make([]*pubmedSqlStructs.Article, chunkSize)
 						arrayIndex = 0
 					}
 				}
@@ -173,7 +173,7 @@ func main() {
 	//log.Println(journalMap)
 }
 
-func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
+func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.Article {
 	medlineCitation := p.MedlineCitation
 	pArticle := medlineCitation.Article
 	if pArticle == nil {
@@ -181,7 +181,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 		return nil
 	}
 	var err error
-	dbArticle := new(Article)
+	dbArticle := new(pubmedSqlStructs.Article)
 	dbArticle.ID, err = strconv.ParseInt(p.MedlineCitation.PMID.Text, 10, 64)
 	if err != nil {
 		log.Println(err)
@@ -197,6 +197,24 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 
 	// Title
 	dbArticle.Title = pArticle.ArticleTitle.Text
+
+	// DateRevised
+	if p.MedlineCitation.DateRevised != nil {
+		d := p.MedlineCitation.DateRevised.Year.Text + p.MedlineCitation.DateRevised.Month.Text + p.MedlineCitation.DateRevised.Day.Text
+		dbArticle.DateRevised, err = strconv.ParseInt(d, 10, 64)
+	} else {
+		if p.MedlineCitation.DateCompleted != nil {
+			d := p.MedlineCitation.DateCompleted.Year.Text + p.MedlineCitation.DateCompleted.Month.Text + p.MedlineCitation.DateCompleted.Day.Text
+			dbArticle.DateRevised, err = strconv.ParseInt(d, 10, 64)
+		} else {
+			if p.MedlineCitation.DateCreated != nil {
+				d := p.MedlineCitation.DateCreated.Year.Text + p.MedlineCitation.DateCreated.Month.Text + p.MedlineCitation.DateCreated.Day.Text
+				dbArticle.DateRevised, err = strconv.ParseInt(d, 10, 64)
+			} else {
+				log.Println(p.MedlineCitation)
+			}
+		}
+	}
 
 	// Date
 	if pArticle.Journal != nil {
@@ -250,12 +268,12 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 			}
 		}
 
-		dbArticle.Citations = make([]*Citation, actualCitationCount)
+		dbArticle.Citations = make([]*pubmedSqlStructs.Citation, actualCitationCount)
 		counter := 0
 		var err error
 		for _, commentsCorrection := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
 			if commentsCorrection.Attr_RefType == CommentsCorrections_RefType {
-				citation := new(Citation)
+				citation := new(pubmedSqlStructs.Citation)
 				citation.ID, err = strconv.ParseInt(commentsCorrection.PMID.Text, 10, 64)
 				if err != nil {
 					log.Println(err)
@@ -303,9 +321,9 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 	}
 
 	if pArticle.AuthorList != nil {
-		dbArticle.Authors = make([]Author, len(pArticle.AuthorList.Author))
+		dbArticle.Authors = make([]pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
 		for i, author := range pArticle.AuthorList.Author {
-			dbAuthor := new(Author)
+			dbAuthor := new(pubmedSqlStructs.Author)
 			if author.Identifier != nil {
 				//dbAuthor.Id = author.Identifier.Text
 			}
@@ -325,7 +343,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *Article {
 	return dbArticle
 }
 
-func articleAdder(articleChannel chan []*Article, done chan bool, db *gorm.DB, commitSize int) {
+func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *gorm.DB, commitSize int) {
 	log.Println("Start articleAdder")
 	tx := db.Begin()
 	t0 := time.Now()

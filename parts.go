@@ -1,13 +1,14 @@
 package main
 
 import (
+	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
 	//"log"
 )
 
-var journalMap map[string]*Journal = make(map[string]*Journal)
+var journalMap map[string]*pubmedSqlStructs.Journal = make(map[string]*pubmedSqlStructs.Journal)
 
-func makeJournal(journal *pubmedstruct.Journal) *Journal {
+func makeJournal(journal *pubmedstruct.Journal) *pubmedSqlStructs.Journal {
 	mapKey := ""
 
 	if journal.ISOAbbreviation == nil && journal.ISSN == nil {
@@ -25,7 +26,7 @@ func makeJournal(journal *pubmedstruct.Journal) *Journal {
 		return newJournal
 	}
 
-	newJournal := new(Journal)
+	newJournal := new(pubmedSqlStructs.Journal)
 	if journal.ISOAbbreviation != nil {
 		newJournal.IsoAbbreviation = journal.ISOAbbreviation.Text
 	}
@@ -37,10 +38,10 @@ func makeJournal(journal *pubmedstruct.Journal) *Journal {
 	return newJournal
 }
 
-var chemicalMap map[string]*Chemical = make(map[string]*Chemical)
+var chemicalMap map[string]*pubmedSqlStructs.Chemical = make(map[string]*pubmedSqlStructs.Chemical)
 
-func makeChemicals(chemicals []*pubmedstruct.Chemical) []*Chemical {
-	newChemicals := make([]*Chemical, len(chemicals))
+func makeChemicals(chemicals []*pubmedstruct.Chemical) []*pubmedSqlStructs.Chemical {
+	newChemicals := make([]*pubmedSqlStructs.Chemical, len(chemicals))
 	for i, chemical := range chemicals {
 		newChemicals[i] = findChemical(chemical)
 	}
@@ -48,14 +49,14 @@ func makeChemicals(chemicals []*pubmedstruct.Chemical) []*Chemical {
 	return newChemicals
 }
 
-func findChemical(chem *pubmedstruct.Chemical) *Chemical {
+func findChemical(chem *pubmedstruct.Chemical) *pubmedSqlStructs.Chemical {
 	mapKey := chem.RegistryNumber.Text + "_" + chem.RegistryNumber.Text
 
 	if chemical, ok := chemicalMap[mapKey]; ok {
 		return chemical
 	}
 
-	chemical := new(Chemical)
+	chemical := new(pubmedSqlStructs.Chemical)
 	chemical.Name = chem.NameOfSubstance.Text
 	chemical.Registry = chem.RegistryNumber.Text
 
@@ -63,8 +64,8 @@ func findChemical(chem *pubmedstruct.Chemical) *Chemical {
 	return chemical
 }
 
-func makeKeywords(owner string, keywords []*pubmedstruct.Keyword) []*Keyword {
-	newKeywords := make([]*Keyword, len(keywords))
+func makeKeywords(owner string, keywords []*pubmedstruct.Keyword) []*pubmedSqlStructs.Keyword {
+	newKeywords := make([]*pubmedSqlStructs.Keyword, len(keywords))
 
 	for i, k := range keywords {
 		newKeywords[i] = findKeyword(owner, k)
@@ -73,9 +74,9 @@ func makeKeywords(owner string, keywords []*pubmedstruct.Keyword) []*Keyword {
 	return newKeywords
 }
 
-var keywordMap map[string]*Keyword = make(map[string]*Keyword)
+var keywordMap map[string]*pubmedSqlStructs.Keyword = make(map[string]*pubmedSqlStructs.Keyword)
 
-func findKeyword(owner string, k *pubmedstruct.Keyword) *Keyword {
+func findKeyword(owner string, k *pubmedstruct.Keyword) *pubmedSqlStructs.Keyword {
 
 	mapKey := owner + "_" + k.Attr_MajorTopicYN + "_" + k.Text
 
@@ -83,7 +84,7 @@ func findKeyword(owner string, k *pubmedstruct.Keyword) *Keyword {
 		return keyword
 	}
 
-	keyword := new(Keyword)
+	keyword := new(pubmedSqlStructs.Keyword)
 	keyword.Name = k.Text
 
 	if k.Attr_MajorTopicYN == "Y" {

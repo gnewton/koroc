@@ -1,14 +1,15 @@
 package main
 
 import (
+	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
 )
 
-func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*MeshDescriptor {
-	meshDescriptors := make([]*MeshDescriptor, len(mhs))
+func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.MeshDescriptor {
+	meshDescriptors := make([]*pubmedSqlStructs.MeshDescriptor, len(mhs))
 
 	for i, mh := range mhs {
-		newMeshDescriptor := new(MeshDescriptor)
+		newMeshDescriptor := new(pubmedSqlStructs.MeshDescriptor)
 		newMeshDescriptor.MajorTopic = (mh.DescriptorName.Attr_MajorTopicYN == "Y")
 		newMeshDescriptor.Type = mh.DescriptorName.Attr_Type
 		newMeshDescriptor.Name = mh.DescriptorName.Text
@@ -19,11 +20,11 @@ func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*MeshDescriptor {
 	return meshDescriptors
 }
 
-func makeQualifiers(qns []*pubmedstruct.QualifierName) []*MeshQualifier {
-	qualifiers := make([]*MeshQualifier, len(qns))
+func makeQualifiers(qns []*pubmedstruct.QualifierName) []*pubmedSqlStructs.MeshQualifier {
+	qualifiers := make([]*pubmedSqlStructs.MeshQualifier, len(qns))
 
 	for i, q := range qns {
-		mq := new(MeshQualifier)
+		mq := new(pubmedSqlStructs.MeshQualifier)
 		mq.Name = q.Text
 		mq.MajorTopic = (q.Attr_MajorTopicYN == "Y")
 		qualifiers[i] = mq

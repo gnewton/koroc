@@ -14,6 +14,7 @@ func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.Me
 		newMeshDescriptor.Type = mh.DescriptorName.Attr_Type
 		newMeshDescriptor.Name = mh.DescriptorName.Text
 		newMeshDescriptor.Qualifiers = makeQualifiers(mh.QualifierName)
+		newMeshDescriptor.UI = mh.DescriptorName.Attr_UI
 
 		meshDescriptors[i] = newMeshDescriptor
 	}
@@ -27,6 +28,7 @@ func makeQualifiers(qns []*pubmedstruct.QualifierName) []*pubmedSqlStructs.MeshQ
 		mq := new(pubmedSqlStructs.MeshQualifier)
 		mq.Name = q.Text
 		mq.MajorTopic = (q.Attr_MajorTopicYN == "Y")
+		mq.UI = q.Attr_UI
 		qualifiers[i] = mq
 	}
 	return qualifiers

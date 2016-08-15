@@ -456,7 +456,16 @@ func medlineDate2Year(md string) int {
 	var year int
 	var err error
 	// case 2000-2001
-	if string(md[4]) == string('-') {
+	log.Println(md)
+	if len(md) == 5{
+	   year, err = strconv.Atoi(md)
+		if err != nil {
+			log.Println("error!! ", err)
+			year = 0					     
+		}
+	   return year
+	}
+	if len(md) >= 5 && string(md[4]) == string('-') {
 		yearStrings := strings.Split(md, "-")
 		//case 1999-00
 		if len(yearStrings[1]) != 4 {

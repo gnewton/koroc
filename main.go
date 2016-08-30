@@ -19,6 +19,8 @@ import (
 	//"strings"
 	//_ "net/http/pprof"
 	"encoding/xml"
+
+	"runtime/pprof"
 )
 
 var TransactionSize = 10000
@@ -42,6 +44,7 @@ var counters map[string]*int
 var closeOpenCount int64 = 0
 
 func init() {
+
 	//defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
@@ -66,6 +69,13 @@ func init() {
 }
 
 func main() {
+	f, err := os.Create("cpuprofile")
+	if err != nil {
+		log.Fatal(err)
+	}
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
@@ -171,6 +181,13 @@ func main() {
 	_ = <-done
 
 	//log.Println(journalMap)
+
+	f, err = os.Create("memProfile")
+	if err != nil {
+		log.Fatal(err)
+	}
+	pprof.WriteHeapProfile(f)
+	f.Close()
 }
 
 func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.Article {
@@ -261,17 +278,23 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 
 	// Citations
 	if medlineCitation.CommentsCorrectionsList != nil {
+
 		actualCitationCount := 0
-		for _, commentsCorrection := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
+		for i, _ := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
+			commentsCorrection := medlineCitation.CommentsCorrectionsList.CommentsCorrections[i]
+			//log.Printf("%+v\n", *commentsCorrection)
+
 			if commentsCorrection.Attr_RefType == CommentsCorrections_RefType {
 				actualCitationCount = actualCitationCount + 1
+				//log.Println(commentsCorrection.PMID.Text)
 			}
 		}
 
 		dbArticle.Citations = make([]*pubmedSqlStructs.Citation, actualCitationCount)
 		counter := 0
 		var err error
-		for _, commentsCorrection := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
+		for i, _ := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
+			commentsCorrection := medlineCitation.CommentsCorrectionsList.CommentsCorrections[i]
 			if commentsCorrection.Attr_RefType == CommentsCorrections_RefType {
 				citation := new(pubmedSqlStructs.Citation)
 				citation.ID, err = strconv.ParseInt(commentsCorrection.PMID.Text, 10, 64)
@@ -279,7 +302,9 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 					log.Println(err)
 				}
 				//citation.RefSource = commentsCorrection.RefSource.Text
+				//citation.ID = commentsCorrection.RefSource.Text
 				dbArticle.Citations[counter] = citation
+				//log.Println("---", dbArticle.Citations[counter].ID)
 				counter = counter + 1
 			}
 		}
@@ -294,15 +319,6 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 	//mesh headings
 	if medlineCitation.MeshHeadingList != nil {
 		dbArticle.MeshDescriptors = makeMeshDescriptors(medlineCitation.MeshHeadingList.MeshHeading)
-		/*
-			dbArticle.MeshTerms = make([]MeshTerm, len(medlineCitation.MeshHeadingList.MeshHeading))
-			for i, mesh := range medlineCitation.MeshHeadingList.MeshHeading {
-				dbMesh := new(MeshTerm)
-				dbMesh.Descriptor.DescriptorName = mesh.DescriptorName.Text
-				//dbMesh.Qualifier = mesh.QualifierName.Text
-				dbArticle.MeshTerms[i] = *dbMesh
-			}
-		*/
 	}
 
 	if pArticle.Journal != nil {
@@ -322,7 +338,8 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 
 	if pArticle.AuthorList != nil {
 		dbArticle.Authors = make([]pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
-		for i, author := range pArticle.AuthorList.Author {
+		for i, _ := range pArticle.AuthorList.Author {
+			author := pArticle.AuthorList.Author[i]
 			dbAuthor := new(pubmedSqlStructs.Author)
 			if author.Identifier != nil {
 				//dbAuthor.Id = author.Identifier.Text
@@ -456,14 +473,14 @@ func medlineDate2Year(md string) int {
 	var year int
 	var err error
 	// case 2000-2001
-	log.Println(md)
-	if len(md) == 5{
-	   year, err = strconv.Atoi(md)
+	//log.Println(md)
+	if len(md) == 5 {
+		year, err = strconv.Atoi(md)
 		if err != nil {
 			log.Println("error!! ", err)
-			year = 0					     
+			year = 0
 		}
-	   return year
+		return year
 	}
 	if len(md) >= 5 && string(md[4]) == string('-') {
 		yearStrings := strings.Split(md, "-")

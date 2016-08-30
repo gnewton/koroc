@@ -42,7 +42,8 @@ var chemicalMap map[string]*pubmedSqlStructs.Chemical = make(map[string]*pubmedS
 
 func makeChemicals(chemicals []*pubmedstruct.Chemical) []*pubmedSqlStructs.Chemical {
 	newChemicals := make([]*pubmedSqlStructs.Chemical, len(chemicals))
-	for i, chemical := range chemicals {
+	for i, _ := range chemicals {
+		chemical := chemicals[i]
 		newChemicals[i] = findChemical(chemical)
 	}
 
@@ -67,8 +68,9 @@ func findChemical(chem *pubmedstruct.Chemical) *pubmedSqlStructs.Chemical {
 func makeKeywords(owner string, keywords []*pubmedstruct.Keyword) []*pubmedSqlStructs.Keyword {
 	newKeywords := make([]*pubmedSqlStructs.Keyword, len(keywords))
 
-	for i, k := range keywords {
-		newKeywords[i] = findKeyword(owner, k)
+	for i, _ := range keywords {
+		keyword := keywords[i]
+		newKeywords[i] = findKeyword(owner, keyword)
 	}
 
 	return newKeywords

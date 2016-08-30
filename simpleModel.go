@@ -33,7 +33,7 @@ func dbInit() (*gorm.DB, error) {
 	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
 	db.Table("Article_Keyword").AddUniqueIndex("articleKeyword", "article_id", "keyword_id")
 	db.Table("mesh_descriptors").AddIndex("mesh_descriptor_article", "article_id")
-	db.Table("mesh_qualifiers").AddIndex("mesh_qualifier_descriptor", "descriptor_id")
+	db.Table("mesh_qualifiers").AddIndex("mesh_qualifier_descriptor", "mesh_descriptor_id")
 
 	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
 

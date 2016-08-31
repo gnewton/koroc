@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
@@ -23,7 +24,7 @@ import (
 	"runtime/pprof"
 )
 
-var TransactionSize = 10000
+var TransactionSize = 5000
 
 var chunkSize = 1000
 var CloseOpenSize int64 = 99950000
@@ -97,7 +98,22 @@ func main() {
 
 	done := make(chan bool)
 
-	go articleAdder(articleChannel, done, db, TransactionSize)
+	//go articleAdder(articleChannel, done, db, TransactionSize)
+
+	db2, err := sql.Open("sqlite3",
+		dbFileName+"M")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db2.Close()
+	sqlite3Config(db2)
+
+	_, err = db2.Exec(createArticlesTable)
+	if err != nil {
+		panic(err)
+	}
+
+	go articleAdder2(articleChannel, done, db2, TransactionSize)
 	var count int64 = 0
 	chunkCount := 0
 	arrayIndex := 0
@@ -358,6 +374,71 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 	}
 
 	return dbArticle
+}
+
+const prepArticle = "INSERT INTO articles (abstract,day,id,issue,journal_id,keywords_owner,language,month,title,volume,year,date_revised) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+const createArticlesTable = "CREATE TABLE \"articles\" (\"abstract\" varchar(255),\"day\" integer,\"id\" integer primary key autoincrement,\"issue\" varchar(255),\"journal_id\" bigint,\"keywords_owner\" varchar(255),\"language\" varchar(255),\"month\" varchar(8),\"title\" varchar(255),\"volume\" varchar(255),\"year\" integer,\"date_revised\" bigint );"
+
+func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *sql.DB, commitSize int) {
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stmt, err := tx.Prepare(prepArticle)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	chunkCount := 0
+	var totalCount int64 = 0
+	counter := 0
+	for articleArray := range articleChannel {
+		log.Println("-- Consuming chunk ", chunkCount)
+		chunkCount += 1
+
+		for i := 0; i < len(articleArray); i++ {
+			a := articleArray[i]
+			if a == nil {
+				//log.Println(i, " ******** Article is nil")
+				continue
+			}
+			//log.Println(article.Title)
+			_, err = stmt.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
+			if a.ID == 20029614 {
+				log.Println(a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
+			}
+			if err != nil {
+				if err.Error() == "UNIQUE constraint failed: articles.id" {
+					log.Println("*** ", a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
+					continue
+				}
+				log.Println(a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
+				log.Println(err)
+				log.Fatal(err)
+			}
+
+			counter = counter + 1
+			totalCount = totalCount + 1
+			if counter == commitSize {
+				counter = 0
+				log.Println("************ committing", totalCount)
+				tx.Commit()
+				stmt.Close()
+				tx, err = db.Begin()
+				if err != nil {
+					log.Fatal(err)
+				}
+				stmt, err = tx.Prepare(prepArticle)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		}
+	}
+	tx.Commit()
+	stmt.Close()
+	db.Close()
+	done <- true
 }
 
 func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *gorm.DB, commitSize int) {

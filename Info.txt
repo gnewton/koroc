@@ -1,0 +1,32 @@
+
+
+
+time ./GoPubMed2SQLite3 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_*.bz2
+
+time ./GoPubMed2SQLite3 -f pubmedtest.db /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_*.bz2
+
+
+time ./GoPubMed2SQLite3 -f pubmedtestX2.db /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_*.bz2
+
+
+Entrez fetch XML:
+ http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=11748933,11700088&retmode=xml
+
+MAX PMID: http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&reldate=60&datetype=pdat&retmax=1
+
+Python sqlite loader
+https://pypi.python.org/pypi/medic/
+http://fnl.es/medline-kung-fu.html
+
+
+SQLITE3 optimization
+- https://stackoverflow.com/questions/1711631/improve-insert-per-second-performance-of-sqlite
+- http://codificar.com.br/blog/sqlite-optimization-faq/
+Momory
+- https://stackoverflow.com/questions/15255409/how-to-reduce-sqlite-memory-consumption
+https://katastrophos.net/andre/blog/2007/01/04/sqlite-performance-tuning-and-optimization-on-embedded-systems/
+
+
+/usr/bin/time -f "%E maxRes=%M %O %W %P %U"   ./GoPubMed2SQLite3 -f pubmedtest.db  /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3450069_3500069.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3850077_3900077.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3000060_3050060.bz2  /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_4550091_4600091.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_6750135_6800135.bz2 
+
+

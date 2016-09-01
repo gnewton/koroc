@@ -24,9 +24,9 @@ import (
 	"runtime/pprof"
 )
 
-var TransactionSize = 5000
+var TransactionSize = 50000
 
-var chunkSize = 1000
+var chunkSize = 10000
 var CloseOpenSize int64 = 99950000
 var chunkChannelSize = 3
 
@@ -114,6 +114,7 @@ func main() {
 	}
 
 	go articleAdder2(articleChannel, done, db2, TransactionSize)
+
 	var count int64 = 0
 	chunkCount := 0
 	arrayIndex := 0

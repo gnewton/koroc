@@ -34,9 +34,8 @@ func sqlite3Config(db *sql.DB) {
 	//db.Exec("PRAGMA cache_size=32768;")
 	db.Exec("PRAGMA cache_size=65536;")
 	db.Exec("PRAGMA count_changes = OFF;")
-	//db.Exec("PRAGMA cache_spill = OFF;")
+	db.Exec("PRAGMA cache_spill = ON;")
 	//db.Exec("PRAGMA journal_size_limit = 67110000;")
-	db.Exec("PRAGMA locking_mode = NORMAL;")
 	db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
 	//db.Exec("PRAGMA locking_mode = OFF;")
 	db.Exec("PRAGMA encoding = \"UTF-8\";")
@@ -47,7 +46,7 @@ func sqlite3Config(db *sql.DB) {
 
 	//db.Exec("PRAGMA mmap_size=1099511627776;")
 	db.Exec("PRAGMA page_size = 40960;")
-	db.Exec("PRAGMA quick_check;")
+
 	db.Exec("PRAGMA shrink_memory;")
 	db.Exec("PRAGMA synchronous=OFF;")
 	//db.Exec("PRAGMA synchronous = NORMAL;")

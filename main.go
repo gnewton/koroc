@@ -2,26 +2,22 @@ package main
 
 import (
 	"database/sql"
+	"encoding/xml"
 	"flag"
-	"github.com/gnewton/pubmedSqlStructs"
-	"github.com/gnewton/pubmedstruct"
-	"github.com/jinzhu/gorm"
 	"io"
 	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
-	//	"net/http"
-	//"github.com/davecheney/profile"
-	//"strings"
-	//_ "net/http/pprof"
-	"encoding/xml"
 
-	"runtime/pprof"
+	"github.com/gnewton/pubmedSqlStructs"
+	"github.com/gnewton/pubmedstruct"
+	"github.com/jinzhu/gorm"
 )
 
 var TransactionSize = 50000
@@ -31,6 +27,7 @@ var CloseOpenSize int64 = 99950000
 var chunkChannelSize = 3
 
 var dbFileName = "./pubmed_sqlite.db"
+var meshFileName = ""
 var sqliteLogFlag = false
 var LoadNRecordsPerFile int64 = math.MaxInt64
 var recordPerFileCounter int64 = 0
@@ -42,7 +39,10 @@ const PUBMED_ARTICLE = "PubmedArticle"
 var out int = -1
 var JournalIdCounter int64 = 0
 var counters map[string]*int
+var articleIdsInDBCache map[int64]struct{}
 var closeOpenCount int64 = 0
+
+var empty struct{}
 
 func init() {
 
@@ -50,6 +50,7 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
 	flag.StringVar(&dbFileName, "f", dbFileName, "SQLite output filename")
+	flag.StringVar(&meshFileName, "m", meshFileName, "MeSH descriptor sqlite3 filename")
 
 	flag.IntVar(&TransactionSize, "t", TransactionSize, "Size of transactions")
 	flag.IntVar(&chunkSize, "C", chunkSize, "Size of chunks")
@@ -70,6 +71,11 @@ func init() {
 }
 
 func main() {
+
+	if meshFileName != "" {
+		loadMesh(meshFileName)
+	}
+
 	f, err := os.Create("cpuprofile")
 	if err != nil {
 		log.Fatal(err)
@@ -82,6 +88,7 @@ func main() {
 	}()
 	//defer profile.Start(profile.CPUProfile).Stop()
 
+	//db, err := dbInit()
 	db, err := dbInit()
 	if err != nil {
 		Error.Fatal(err)
@@ -100,20 +107,33 @@ func main() {
 
 	//go articleAdder(articleChannel, done, db, TransactionSize)
 
-	db2, err := sql.Open("sqlite3",
-		dbFileName+"M")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db2.Close()
-	sqlite3Config(db2)
+	/*
+		t0 := time.Now()
+		db2, err := sql.Open("sqlite3",
+			dbFileName+"M")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer db2.Close()
+		log.Printf("The database took %v to open.\n", t0.Sub(time.Now()))
+		t0 = time.Now()
+		sqlite3Config(db2)
+		log.Printf("The database took %v to configure.\n", t0.Sub(time.Now()))
 
-	_, err = db2.Exec(createArticlesTable)
-	if err != nil {
-		panic(err)
-	}
-
-	go articleAdder2(articleChannel, done, db2, TransactionSize)
+		_, err = db2.Exec(createArticlesTable)
+		if err != nil {
+			if err.Error() != "table \"articles\" already exists" {
+				log.Println(err)
+				panic(err)
+			}
+		}
+		articleIdsInDBCache, err = makeArticleIdsInDBCache(db2)
+		if err != nil {
+			log.Fatal(err)
+		}
+		//go articleAdder2(articleChannel, done, db2, TransactionSize)
+	*/
+	go articleAdder(articleChannel, done, db, TransactionSize)
 
 	var count int64 = 0
 	chunkCount := 0
@@ -377,15 +397,24 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 	return dbArticle
 }
 
-const prepArticle = "INSERT INTO articles (abstract,day,id,issue,journal_id,keywords_owner,language,month,title,volume,year,date_revised) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
 const createArticlesTable = "CREATE TABLE \"articles\" (\"abstract\" varchar(255),\"day\" integer,\"id\" integer primary key autoincrement,\"issue\" varchar(255),\"journal_id\" bigint,\"keywords_owner\" varchar(255),\"language\" varchar(255),\"month\" varchar(8),\"title\" varchar(255),\"volume\" varchar(255),\"year\" integer,\"date_revised\" bigint );"
+
+const prepInsertArticle = "INSERT INTO articles (abstract,day,id,issue,journal_id,keywords_owner,language,month,title,volume,year,date_revised) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+
+const prepUpdateArticle = "UPDATE articles set abstract=?,day=?,id=?,issue=?,journal_id=?,keywords_owner=?,language=?,month=?,title=?,volume=?,year=?,date_revised=? where id=?"
 
 func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *sql.DB, commitSize int) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
 	}
-	stmt, err := tx.Prepare(prepArticle)
+
+	stmtInsert, err := tx.Prepare(prepInsertArticle)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stmtUpdate, err := tx.Prepare(prepUpdateArticle)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -399,22 +428,28 @@ func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bo
 
 		for i := 0; i < len(articleArray); i++ {
 			a := articleArray[i]
+
 			if a == nil {
 				//log.Println(i, " ******** Article is nil")
 				continue
 			}
-			//log.Println(article.Title)
-			_, err = stmt.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
-			if a.ID == 20029614 {
-				log.Println(a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
+
+			// Have we already inserted this article (i.e. is this an update?)
+			if _, ok := articleIdsInDBCache[a.ID]; ok {
+				_, err = stmtUpdate.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised, a.ID)
+			} else {
+				articleIdsInDBCache[a.ID] = empty
+				_, err = stmtInsert.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
+
 			}
+
 			if err != nil {
+				log.Println(err)
 				if err.Error() == "UNIQUE constraint failed: articles.id" {
 					log.Println("*** ", a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
 					continue
 				}
 				log.Println(a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
-				log.Println(err)
 				log.Fatal(err)
 			}
 
@@ -424,12 +459,17 @@ func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bo
 				counter = 0
 				log.Println("************ committing", totalCount)
 				tx.Commit()
-				stmt.Close()
+				stmtInsert.Close()
+				stmtUpdate.Close()
 				tx, err = db.Begin()
 				if err != nil {
 					log.Fatal(err)
 				}
-				stmt, err = tx.Prepare(prepArticle)
+				stmtInsert, err = tx.Prepare(prepInsertArticle)
+				if err != nil {
+					log.Fatal(err)
+				}
+				stmtUpdate, err = tx.Prepare(prepUpdateArticle)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -437,9 +477,18 @@ func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bo
 		}
 	}
 	tx.Commit()
-	stmt.Close()
+	stmtInsert.Close()
+	stmtUpdate.Close()
 	db.Close()
 	done <- true
+}
+
+func updateArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
+	return nil, nil
+}
+
+func insertArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
+	return nil, nil
 }
 
 func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *gorm.DB, commitSize int) {
@@ -590,4 +639,34 @@ func medlineDate2Year(md string) int {
 	}
 	return year
 
+}
+
+const selectArticleIDs = "select id from articles"
+
+func makeArticleIdsInDBCache(db *sql.DB) (map[int64]struct{}, error) {
+	tx, err := db.Begin()
+	defer tx.Commit()
+	if err != nil {
+		return nil, err
+	}
+	t0 := time.Now()
+
+	rows, err := tx.Query(selectArticleIDs)
+	defer rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	articleIdsInDB := make(map[int64]struct{}, 10000)
+	count := 0
+	for rows.Next() {
+		count += 1
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		articleIdsInDB[id] = empty
+	}
+	log.Printf("The database took %v to load cache. Size:%d\n", time.Now().Sub(t0), count)
+	return articleIdsInDB, err
 }

@@ -354,6 +354,8 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 	}
 
 	//mesh headings
+	//log.Println("mesh")
+	//log.Println(medlineCitation.MeshHeadingList)
 	if medlineCitation.MeshHeadingList != nil {
 		dbArticle.MeshDescriptors = makeMeshDescriptors(medlineCitation.MeshHeadingList.MeshHeading)
 	}

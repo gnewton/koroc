@@ -22,8 +22,7 @@ func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.Me
 		newMeshDescriptor.UI = meshHeading.DescriptorName.Attr_UI
 
 		if _, ok := meshMap[newMeshDescriptor.Name]; !ok {
-			log.Println(newMeshDescriptor.Name)
-
+			//log.Println(newMeshDescriptor.Name)
 		}
 
 		meshDescriptors[i] = newMeshDescriptor

@@ -20,13 +20,13 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-var TransactionSize = 50000
+var TransactionSize = 100000
 
 var chunkSize = 10000
 var CloseOpenSize int64 = 99950000
 var chunkChannelSize = 3
 
-var dbFileName = "./pubmed_sqlite.db"
+var dbFilename = "./pubmed_sqlite.db"
 var meshFileName = ""
 var sqliteLogFlag = false
 var LoadNRecordsPerFile int64 = math.MaxInt64
@@ -49,7 +49,7 @@ func init() {
 	//defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
-	flag.StringVar(&dbFileName, "f", dbFileName, "SQLite output filename")
+	flag.StringVar(&dbFilename, "f", dbFilename, "SQLite output filename")
 	flag.StringVar(&meshFileName, "m", meshFileName, "MeSH descriptor sqlite3 filename")
 
 	flag.IntVar(&TransactionSize, "t", TransactionSize, "Size of transactions")
@@ -89,7 +89,10 @@ func main() {
 	//defer profile.Start(profile.CPUProfile).Stop()
 
 	//db, err := dbInit()
-	db, err := dbInit()
+	dbc := DBConnector{dbFilename: dbFilename}
+
+	db, err := dbc.Open()
+
 	if err != nil {
 		Error.Fatal(err)
 		return
@@ -101,39 +104,16 @@ func main() {
 		}
 	}()
 
-	articleChannel := make(chan []*pubmedSqlStructs.Article, chunkChannelSize)
+	dbInit(db)
 
+	articleChannel := make(chan []*pubmedSqlStructs.Article, chunkChannelSize)
+	txChannel := make(chan *gorm.DB, 10)
 	done := make(chan bool)
 
 	//go articleAdder(articleChannel, done, db, TransactionSize)
 
-	/*
-		t0 := time.Now()
-		db2, err := sql.Open("sqlite3",
-			dbFileName+"M")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer db2.Close()
-		log.Printf("The database took %v to open.\n", t0.Sub(time.Now()))
-		t0 = time.Now()
-		sqlite3Config(db2)
-		log.Printf("The database took %v to configure.\n", t0.Sub(time.Now()))
-
-		_, err = db2.Exec(createArticlesTable)
-		if err != nil {
-			if err.Error() != "table \"articles\" already exists" {
-				log.Println(err)
-				panic(err)
-			}
-		}
-		articleIdsInDBCache, err = makeArticleIdsInDBCache(db2)
-		if err != nil {
-			log.Fatal(err)
-		}
-		//go articleAdder2(articleChannel, done, db2, TransactionSize)
-	*/
-	go articleAdder(articleChannel, done, db, TransactionSize)
+	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize)
+	go committor(txChannel, done)
 
 	var count int64 = 0
 	chunkCount := 0
@@ -405,7 +385,7 @@ const prepInsertArticle = "INSERT INTO articles (abstract,day,id,issue,journal_i
 
 const prepUpdateArticle = "UPDATE articles set abstract=?,day=?,id=?,issue=?,journal_id=?,keywords_owner=?,language=?,month=?,title=?,volume=?,year=?,date_revised=? where id=?"
 
-func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *sql.DB, commitSize int) {
+func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, commitSize int) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
@@ -482,7 +462,7 @@ func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, done chan bo
 	stmtInsert.Close()
 	stmtUpdate.Close()
 	db.Close()
-	done <- true
+
 }
 
 func updateArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
@@ -493,10 +473,20 @@ func insertArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
 	return nil, nil
 }
 
-func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, done chan bool, db *gorm.DB, commitSize int) {
+func committor(transactionChannel chan *gorm.DB, done chan bool) {
+	for tx := range transactionChannel {
+		log.Println("COMMIT starting")
+		tx.Commit()
+		tx.Close()
+		log.Println("COMMIT done")
+	}
+	done <- true
+}
+
+func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, txChannel chan *gorm.DB, commitSize int) {
 	log.Println("Start articleAdder")
 	tx := db.Begin()
-	t0 := time.Now()
+	//t0 := time.Now()
 	var totalCount int64 = 0
 	counter := 0
 	chunkCount := 0
@@ -525,27 +515,30 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, done chan boo
 			totalCount = totalCount + 1
 			closeOpenCount = closeOpenCount + 1
 			if counter == commitSize {
-				tc0 := time.Now()
-				tx.Commit()
-				t1 := time.Now()
-				log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
-				log.Printf("The call took %v to run.\n", t1.Sub(t0))
-				t0 = time.Now()
-				counter = 0
-
-				if closeOpenCount >= CloseOpenSize {
-					log.Println("CLOSEOPEN $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", closeOpenCount)
-					var err error
-					db, err = dbCloseOpen(db)
-					if err != nil {
-						log.Fatal(err)
-					}
-					closeOpenCount = 0
+				//tc0 := time.Now()
+				//tx.Commit()
+				log.Printf("Transaction channel length=%d", len(txChannel))
+				txChannel <- tx
+				//log.Println("transaction")
+				//log.Println(tx)
+				var err error
+				tx, err = dbc.Open()
+				if err != nil {
+					log.Fatal(err)
 				}
-
-				tx = db.Begin()
+				//t1 := time.Now()
+				//log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
+				//log.Printf("The call took %v to run.\n", t1.Sub(t0))
+				//t0 = time.Now()
+				counter = 0
+				tx = tx.Begin()
+				//log.Println("transaction")
+				//log.Println(tx)
 			}
 			if err := tx.Create(article).Error; err != nil {
+				//log.Println("transaction")
+				//log.Println(tx)
+				log.Println(err)
 				tx.Rollback()
 				log.Println("\\\\\\\\\\\\\\\\")
 				log.Println("[", err, "]")
@@ -566,8 +559,8 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, done chan boo
 		tx.Commit()
 		makeIndexes(db)
 	}
-	db.Close()
-	done <- true
+	//db.Close()
+	//done <- true
 }
 
 // From: http://www.goinggo.net/2013/11/using-log-package-in-go.html
@@ -644,6 +637,14 @@ func medlineDate2Year(md string) int {
 }
 
 const selectArticleIDs = "select id from articles"
+
+type DBConnector struct {
+	dbFilename string
+}
+
+func (dbc *DBConnector) Open() (*gorm.DB, error) {
+	return gorm.Open("sqlite3", dbc.dbFilename)
+}
 
 func makeArticleIdsInDBCache(db *sql.DB) (map[int64]struct{}, error) {
 	tx, err := db.Begin()

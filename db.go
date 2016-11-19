@@ -9,13 +9,13 @@ import (
 	"log"
 )
 
-func dbOpen() (*gorm.DB, error) {
-	db, err := gorm.Open("sqlite3", dbFileName)
+func dbOpen(filename string) (*gorm.DB, error) {
+	db, err := gorm.Open("sqlite3", filename)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
-	log.Println("Opening db file: ", dbFileName)
+	log.Println("Opening db file: ", filename)
 	if sqliteLogFlag {
 		db.LogMode(true)
 	}
@@ -53,9 +53,4 @@ func sqlite3Config(db *sql.DB) {
 	//db.Exec("PRAGMA temp_store = MEMORY;")
 	//db.Exec("PRAGMA threads = 5;")
 	//db.Exec("PRAGMA wal_autocheckpoint = 1638400;")
-}
-
-func dbCloseOpen(prevDb *gorm.DB) (*gorm.DB, error) {
-	prevDb.Close()
-	return dbOpen()
 }

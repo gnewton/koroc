@@ -8,12 +8,7 @@ import (
 	"log"
 )
 
-func dbInit() (*gorm.DB, error) {
-	db, err := dbOpen()
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
+func dbInit(db *gorm.DB) {
 	log.Printf("%v\n", *db)
 
 	db.CreateTable(&pubmedSqlStructs.Article{})
@@ -28,8 +23,6 @@ func dbInit() (*gorm.DB, error) {
 	db.CreateTable(&pubmedSqlStructs.OtherID{})
 
 	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
-
-	return db, nil
 }
 
 func makeIndexes(db *gorm.DB) {

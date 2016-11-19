@@ -126,7 +126,16 @@ func main() {
 	}
 
 	// Loop through files
+
+	n := 5
+	filenameChannel := make(chan string, n)
+
+	for i := 0; i < n; i++ {
+		go filenamePuller(filenameChannel)
+	}
+
 	for i, filename := range flag.Args() {
+		filenameChannel <- filename
 
 		log.Println("Opening: "+filename, " ", i+1, " of ", len(flag.Args()))
 		//log.Println(strconv.Itoa(i) + " of " + strconv.Itoa(len(flag.Args)-1))
@@ -195,6 +204,11 @@ func main() {
 	}
 
 	close(articleChannel)
+	for i := 0; i < n; i++ {
+		filenameChannel <- ""
+	}
+
+	close(filenameChannel)
 	_ = <-done
 
 	//log.Println(journalMap)
@@ -205,6 +219,16 @@ func main() {
 	}
 	pprof.WriteHeapProfile(f)
 	f.Close()
+}
+
+func filenamePuller(c chan string) {
+	for filename := range c {
+		if filename == "" {
+			break
+		}
+		log.Println(filename)
+
+	}
 }
 
 func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.Article {
@@ -557,9 +581,16 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 	}
 	if !doNotWriteToDbFlag {
 		tx.Commit()
-		makeIndexes(db)
+		var err error
+		tx, err = dbc.Open()
+		if err != nil {
+			log.Fatal(err)
+		}
+		makeIndexes(tx)
 	}
-	//db.Close()
+	close(txChannel)
+	db.Close()
+	log.Println("-- END articleAdder")
 	//done <- true
 }
 

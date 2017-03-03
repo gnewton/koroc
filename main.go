@@ -118,11 +118,10 @@ func main() {
 	}
 	close(filenameChannel)
 
-	for i, _ := range flag.Args() {
+	for _, _ = range flag.Args() {
 		_ = <-done
 	}
 
-	log.Println("111")
 	close(articleChannel)
 	_ = <-articleAdderDone
 }

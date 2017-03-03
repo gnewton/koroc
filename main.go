@@ -8,9 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
-	"net/http"
 	"os"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -76,19 +74,6 @@ func main() {
 		loadMesh(meshFileName)
 	}
 
-	f, err := os.Create("cpuprofile")
-	if err != nil {
-		log.Fatal(err)
-	}
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-	//defer profile.Start(profile.CPUProfile).Stop()
-
-	//db, err := dbInit()
 	dbc := DBConnector{dbFilename: dbFilename}
 
 	db, err := dbc.Open()
@@ -105,21 +90,15 @@ func main() {
 	}()
 
 	dbInit(db)
+	db.Close()
 
-	articleChannel := make(chan []*pubmedSqlStructs.Article, chunkChannelSize)
-	txChannel := make(chan *gorm.DB, 10)
-	done := make(chan bool)
+	articleChannel := make(chan []*pubmedSqlStructs.Article, 20)
+	txChannel := make(chan *gorm.DB, 5)
 
-	//go articleAdder(articleChannel, done, db, TransactionSize)
-
-	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize)
+	done := make(chan bool, 8)
+	articleAdderDone := make(chan bool)
+	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
 	go committor(txChannel, done)
-
-	var count int64 = 0
-	chunkCount := 0
-	arrayIndex := 0
-
-	var articleArray []*pubmedSqlStructs.Article
 
 	for i, filename := range flag.Args() {
 		log.Println(i, " -- Input file: "+filename)
@@ -127,38 +106,63 @@ func main() {
 
 	// Loop through files
 
-	n := 5
+	n := len(flag.Args())
 	filenameChannel := make(chan string, n)
 
 	for i := 0; i < n; i++ {
-		go filenamePuller(filenameChannel)
+		go readFromFileAndExtractXML(filenameChannel, &dbc, articleChannel, done)
 	}
 
-	for i, filename := range flag.Args() {
+	for _, filename := range flag.Args() {
 		filenameChannel <- filename
+	}
+	close(filenameChannel)
 
-		log.Println("Opening: "+filename, " ", i+1, " of ", len(flag.Args()))
-		//log.Println(strconv.Itoa(i) + " of " + strconv.Itoa(len(flag.Args)-1))
+	for i, _ := range flag.Args() {
+		_ = <-done
+	}
+
+	log.Println("111")
+	close(articleChannel)
+	_ = <-articleAdderDone
+}
+
+// Reads from the channel arrays of pubmedarticles and
+func readFromFileAndExtractXML(c chan string, dbc *DBConnector, articleChannel chan []*pubmedSqlStructs.Article, done chan bool) {
+	articleArray := make([]*pubmedSqlStructs.Article, chunkSize)
+	for filename := range c {
+		if filename == "" {
+			break
+		}
+		log.Println("Opening: " + filename)
 		reader, _, err := genericReader(filename)
 
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
-		arrayIndex = 0
-		articleArray = make([]*pubmedSqlStructs.Article, chunkSize)
 
 		decoder := xml.NewDecoder(reader)
 		counters = make(map[string]*int)
 
+		count := 0
+
 		// Loop through XML
 		for {
+
 			if recordPerFileCounter == LoadNRecordsPerFile {
 				log.Println("break file load. LoadNRecordsPerFile", count, LoadNRecordsPerFile)
 				recordPerFileCounter = 0
 				break
 			}
-			token, _ := decoder.Token()
+			token, err := decoder.Token()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Println("Fatal error in file:", filename)
+				log.Fatal(err)
+			}
 			if token == nil {
 				break
 			}
@@ -166,10 +170,7 @@ func main() {
 			case xml.StartElement:
 				if se.Name.Local == PUBMED_ARTICLE && se.Name.Space == "" {
 					if count%10000 == 0 && count != 0 {
-						log.Println("------------")
 						log.Printf("count=%d\n", count)
-						log.Printf("arrayIndex=%d\n", arrayIndex)
-						log.Println("------------")
 					}
 
 					count = count + 1
@@ -181,57 +182,28 @@ func main() {
 						log.Println("-----------------nil")
 						continue
 					}
-					articleArray[arrayIndex] = article
-					arrayIndex = arrayIndex + 1
-					if arrayIndex >= chunkSize {
-						//log.Printf("Sending chunk %d", chunkCount)
-						chunkCount = chunkCount + 1
-						//pubmedArticleChannel <- &pubmedArticle
-						//log.Printf("%v\n", articleArray)
+					articleArray[count] = article
+					if count == chunkSize-1 {
 						articleChannel <- articleArray
-						log.Println("Sent")
 						articleArray = make([]*pubmedSqlStructs.Article, chunkSize)
-						arrayIndex = 0
+						count = 0
 					}
+
 				}
 			}
-
-		}
-		if arrayIndex > 0 && arrayIndex < chunkSize {
-			articleChannel <- articleArray
-			chunkCount = chunkCount + 1
 		}
 	}
 
-	close(articleChannel)
-	for i := 0; i < n; i++ {
-		filenameChannel <- ""
+	// Is there something not yet sent in the articleArray?
+	if len(articleArray) > 0 {
+		articleChannel <- articleArray
 	}
 
-	close(filenameChannel)
-	_ = <-done
-
-	//log.Println(journalMap)
-
-	f, err = os.Create("memProfile")
-	if err != nil {
-		log.Fatal(err)
-	}
-	pprof.WriteHeapProfile(f)
-	f.Close()
-}
-
-func filenamePuller(c chan string) {
-	for filename := range c {
-		if filename == "" {
-			break
-		}
-		log.Println(filename)
-
-	}
+	done <- true
 }
 
 func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.Article {
+
 	medlineCitation := p.MedlineCitation
 	pArticle := medlineCitation.Article
 	if pArticle == nil {
@@ -436,7 +408,6 @@ func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, 
 			a := articleArray[i]
 
 			if a == nil {
-				//log.Println(i, " ******** Article is nil")
 				continue
 			}
 
@@ -507,8 +478,13 @@ func committor(transactionChannel chan *gorm.DB, done chan bool) {
 	done <- true
 }
 
-func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, txChannel chan *gorm.DB, commitSize int) {
+func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, txChannel chan *gorm.DB, commitSize int, done chan bool) {
 	log.Println("Start articleAdder")
+	var err error
+	db, err = dbc.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
 	tx := db.Begin()
 	//t0 := time.Now()
 	var totalCount int64 = 0
@@ -591,7 +567,8 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 	close(txChannel)
 	db.Close()
 	log.Println("-- END articleAdder")
-	//done <- true
+	done <- true
+	log.Println("++ END articleAdder")
 }
 
 // From: http://www.goinggo.net/2013/11/using-log-package-in-go.html

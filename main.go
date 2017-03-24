@@ -109,7 +109,8 @@ func main() {
 	n := len(flag.Args())
 	filenameChannel := make(chan string, n)
 
-	for i := 0; i < n; i++ {
+	numExtractors := 5
+	for i := 0; i < numExtractors; i++ {
 		go readFromFileAndExtractXML(filenameChannel, &dbc, articleChannel, done)
 	}
 
@@ -118,7 +119,9 @@ func main() {
 	}
 	close(filenameChannel)
 
-	for _, _ = range flag.Args() {
+	//for _, _ = range flag.Args() {
+	for i := 0; i < numExtractors; i++ {
+
 		_ = <-done
 	}
 

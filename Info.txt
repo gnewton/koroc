@@ -30,3 +30,4 @@ https://katastrophos.net/andre/blog/2007/01/04/sqlite-performance-tuning-and-opt
 /usr/bin/time -f "%E maxRes=%M %O %W %P %U"   ./GoPubMed2SQLite3 -f pubmedtest.db  /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3450069_3500069.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3850077_3900077.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3000060_3050060.bz2  /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_4550091_4600091.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_6750135_6800135.bz2 
 
 
+https://github.com/MrMimic/MEDOC/blob/master/database_creation.sql

@@ -21,6 +21,22 @@ func dbInit(db *gorm.DB) {
 	db.CreateTable(&pubmedSqlStructs.MeshDescriptor{})
 	db.CreateTable(&pubmedSqlStructs.MeshQualifier{})
 	db.CreateTable(&pubmedSqlStructs.OtherID{})
+	db.CreateTable(&pubmedSqlStructs.DataBank{})
+	db.CreateTable(&pubmedSqlStructs.AccessionNumber{})
+	db.CreateTable(&pubmedSqlStructs.ArticleID{})
+
+	var meshDescriptor pubmedSqlStructs.MeshDescriptor
+	var article pubmedSqlStructs.Article
+	db.Model(&meshDescriptor).Related(&article)
+
+	var dataBank pubmedSqlStructs.DataBank
+	db.Model(&dataBank).Related(&article)
+
+	var accessionNumber pubmedSqlStructs.AccessionNumber
+	db.Model(&accessionNumber).Related(&dataBank)
+
+	var articleID pubmedSqlStructs.ArticleID
+	db.Model(&articleID).Related(&article)
 
 	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
 }

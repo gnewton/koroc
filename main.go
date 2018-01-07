@@ -37,7 +37,7 @@ const PUBMED_ARTICLE = "PubmedArticle"
 var out int = -1
 var JournalIdCounter int64 = 0
 var counters map[string]*int
-var articleIdsInDBCache map[int64]struct{}
+var articleIdsInDBCache map[int64]int = make(map[int64]int, 100000)
 var closeOpenCount int64 = 0
 
 var empty struct{}
@@ -98,6 +98,7 @@ func main() {
 	done := make(chan bool, 8)
 	articleAdderDone := make(chan bool)
 	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
+	//go articleAdder2(articleChannel, db, TransactionSize)
 	go committor(txChannel, done)
 
 	for i, filename := range flag.Args() {
@@ -163,7 +164,7 @@ func readFromFileAndExtractXML(c chan string, dbc *DBConnector, articleChannel c
 					break
 				}
 				log.Println("Fatal error in file:", filename)
-				log.Fatal(err)
+				//log.Fatal(err)
 			}
 			if token == nil {
 				break
@@ -219,6 +220,11 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 		log.Println(err)
 	}
 
+	dbArticle.Version, err = strconv.Atoi(p.MedlineCitation.PMID.Attr_Version)
+	if err != nil {
+		log.Println(err)
+	}
+
 	// Abstract
 	dbArticle.Abstract = ""
 	if pArticle.Abstract != nil && pArticle.Abstract.AbstractText != nil {
@@ -246,6 +252,12 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 				log.Println(p.MedlineCitation)
 			}
 		}
+	}
+
+	makeDataBanks(pArticle, dbArticle)
+
+	if p.PubmedData.ArticleIdList != nil {
+		dbArticle.ArticleIDs = makeArticleIdList(p.PubmedData.ArticleIdList)
 	}
 
 	// Date
@@ -377,6 +389,54 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 	return dbArticle
 }
 
+func makeArticleIdList(alist *pubmedstruct.ArticleIdList) []*pubmedSqlStructs.ArticleID {
+	if alist.ArticleId == nil {
+		return nil
+	}
+	arts := make([]*pubmedSqlStructs.ArticleID, len(alist.ArticleId))
+
+	for i, _ := range alist.ArticleId {
+		aid := new(pubmedSqlStructs.ArticleID)
+		aid.Type = alist.ArticleId[i].Attr_IdType
+		aid.ID = alist.ArticleId[i].Text
+		arts[i] = aid
+	}
+
+	return arts
+}
+
+var databankCounter int64 = 0
+
+func makeDataBanks(src *pubmedstruct.Article, dest *pubmedSqlStructs.Article) {
+	if src.DataBankList == nil || src.DataBankList.DataBank == nil {
+		return
+	}
+
+	if dest.DataBanks == nil {
+		dest.DataBanks = make([]*pubmedSqlStructs.DataBank, len(src.DataBankList.DataBank))
+	}
+	for i, _ := range src.DataBankList.DataBank {
+		bank := src.DataBankList.DataBank[i]
+		dest.DataBanks[i] = new(pubmedSqlStructs.DataBank)
+		dest.DataBanks[i].Name = bank.DataBankName.Text
+		log.Println(bank.DataBankName.Text)
+		dest.DataBanks[i].ID = databankCounter
+		databankCounter = databankCounter + 1
+
+		if dest.DataBanks[i].AccessionNumbers == nil {
+			dest.DataBanks[i].AccessionNumbers = make([]*pubmedSqlStructs.AccessionNumber, len(bank.AccessionNumberList.AccessionNumber))
+		}
+		for j, _ := range bank.AccessionNumberList.AccessionNumber {
+			dest.DataBanks[i].AccessionNumbers[j] = new(pubmedSqlStructs.AccessionNumber)
+			dest.DataBanks[i].AccessionNumbers[j].Number = bank.AccessionNumberList.AccessionNumber[j].Text
+			dest.DataBanks[i].AccessionNumbers[j].ID = databankCounter
+			databankCounter = databankCounter + 1
+			log.Println("\t", bank.AccessionNumberList.AccessionNumber[j].Text)
+		}
+
+	}
+}
+
 const createArticlesTable = "CREATE TABLE \"articles\" (\"abstract\" varchar(255),\"day\" integer,\"id\" integer primary key autoincrement,\"issue\" varchar(255),\"journal_id\" bigint,\"keywords_owner\" varchar(255),\"language\" varchar(255),\"month\" varchar(8),\"title\" varchar(255),\"volume\" varchar(255),\"year\" integer,\"date_revised\" bigint );"
 
 const prepInsertArticle = "INSERT INTO articles (abstract,day,id,issue,journal_id,keywords_owner,language,month,title,volume,year,date_revised) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
@@ -415,9 +475,10 @@ func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, 
 
 			// Have we already inserted this article (i.e. is this an update?)
 			if _, ok := articleIdsInDBCache[a.ID]; ok {
+				log.Println("Updating article:", a.ID)
 				_, err = stmtUpdate.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised, a.ID)
 			} else {
-				articleIdsInDBCache[a.ID] = empty
+				articleIdsInDBCache[a.ID] = a.Version
 				_, err = stmtInsert.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
 
 			}
@@ -498,7 +559,7 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 		log.Printf("articleAdder counter=%d", counter)
 		log.Printf("TOTAL counter=%d", totalCount)
 
-		log.Println(commitSize)
+		log.Println("Commit size=", commitSize)
 		if doNotWriteToDbFlag {
 			counter = counter + len(articleArray)
 			totalCount = totalCount + int64(len(articleArray))
@@ -537,7 +598,22 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 				//log.Println("transaction")
 				//log.Println(tx)
 			}
-			if err := tx.Create(article).Error; err != nil {
+			var err error
+			if _, ok := articleIdsInDBCache[article.ID]; ok {
+				log.Println("Updating article:", article.ID, article.Version)
+
+				var oldArticle pubmedSqlStructs.Article
+				tx.Where("ID = ?", article.ID).First(&oldArticle)
+				tx.Delete(oldArticle)
+
+				//err = tx.Update(article).Error
+				err = tx.Create(article).Error
+			} else {
+				err = tx.Create(article).Error
+				articleIdsInDBCache[article.ID] = article.Version
+			}
+
+			if err != nil {
 				//log.Println("transaction")
 				//log.Println(tx)
 				log.Println(err)
@@ -604,12 +680,25 @@ func logInit(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
+var dateSeasonYear = []string{"Summer", "Winter", "Spring", "Fall"}
+
 func medlineDate2Year(md string) int {
+	// Other cases:
+	//   Fall 2017; 8/15/12; Spring 2017; Summer 2017; Fall 2017;
+
 	// case <MedlineDate>1952 Mar-Apr</MedlineDate>
 	var year int
 	var err error
+
 	// case 2000-2001
 	//log.Println(md)
+
+	for i, _ := range dateSeasonYear {
+		if strings.HasPrefix(md, dateSeasonYear[i]) {
+			return seasonYear(md)
+		}
+	}
+
 	if len(md) == 5 {
 		year, err = strconv.Atoi(md)
 		if err != nil {
@@ -636,14 +725,23 @@ func medlineDate2Year(md string) int {
 		//year, err = strconv.Atoi(strings.TrimSpace(strings.Split(md, " ")[0]))
 		year, err = strconv.Atoi(yearString)
 		if err != nil {
-			log.Println("error!! ", err)
+			log.Println("error!! yearString=[", yearString, "]", err)
 		}
 	}
 	if year == 0 {
-		log.Println("medlineDate2Year ", year, md, " [", strings.TrimSpace(string(md[4])), "]")
+		log.Println("medlineDate2Year [", md, "] [", strings.TrimSpace(string(md[4])), "]")
 	}
 	return year
 
+}
+
+func seasonYear(md string) int {
+	parts := strings.Split(md, " ")
+	year, err := strconv.Atoi(parts[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+	return year
 }
 
 const selectArticleIDs = "select id from articles"

@@ -24,7 +24,9 @@ func dbInit(db *gorm.DB) {
 	db.CreateTable(&pubmedSqlStructs.DataBank{})
 	db.CreateTable(&pubmedSqlStructs.AccessionNumber{})
 	db.CreateTable(&pubmedSqlStructs.ArticleID{})
+	db.CreateTable(&pubmedSqlStructs.PublicationType{})
 
+	// Relations
 	var meshDescriptor pubmedSqlStructs.MeshDescriptor
 	var article pubmedSqlStructs.Article
 	db.Model(&meshDescriptor).Related(&article)
@@ -38,6 +40,9 @@ func dbInit(db *gorm.DB) {
 	var articleID pubmedSqlStructs.ArticleID
 	db.Model(&articleID).Related(&article)
 
+	//var publicationType pubmedSqlStructs.PublicationType
+	//db.Model(&publicationType).Related(&article)
+
 	//db.Exec("CREATE VIRTUAL TABLE pages USING fts4(title, body);")
 }
 
@@ -46,13 +51,13 @@ func makeIndexes(db *gorm.DB) {
 
 	db.Table("articles").AddIndex("articlesYear", "year")
 	db.Table("articles").AddIndex("articlesJournalId", "journal_id")
-	db.Table("Article_Author").AddUniqueIndex("articleAuthor", "article_id", "author_id")
-	db.Table("Article_Chemical").AddUniqueIndex("articleChemical", "article_id", "chemical_id")
-	db.Table("Article_Citation").AddUniqueIndex("articleCitation", "article_id", "citation_id")
-	db.Table("Article_Gene").AddUniqueIndex("articleGene", "article_id", "gene_id")
-	db.Table("Article_Keyword").AddUniqueIndex("articleKeyword", "article_id", "keyword_id")
+
 	db.Table("mesh_descriptors").AddIndex("mesh_descriptor_article", "article_id")
 	db.Table("mesh_qualifiers").AddIndex("mesh_qualifier_descriptor", "mesh_descriptor_id")
+
+	db.Table("accession_numbers").AddIndex("data_bank", "data_bank_id")
+	db.Table("data_banks").AddIndex("databank_article", "article_id")
+	db.Table("article_ids").AddIndex("ids_article", "article_id")
 
 	log.Println("makeing indexes END")
 }

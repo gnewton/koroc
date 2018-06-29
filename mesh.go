@@ -26,7 +26,7 @@ func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.Me
 		}
 
 		meshDescriptors[i] = newMeshDescriptor
-		//fmt.Printf("%+v\n", newMeshDescriptor)
+		//log.Printf("%+v\n", newMeshDescriptor)
 		//fmt.Println(meshHeading.DescriptorName.Attr_UI)
 	}
 	return meshDescriptors

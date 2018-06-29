@@ -9,6 +9,11 @@ import (
 	"log"
 )
 
+func dbOpen2(filename string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", filename)
+	return db, err
+}
+
 func dbOpen(filename string) (*gorm.DB, error) {
 	db, err := gorm.Open("sqlite3", filename)
 	if err != nil {
@@ -36,19 +41,19 @@ func sqlite3Config(db *sql.DB) {
 	db.Exec("PRAGMA count_changes = OFF;")
 	db.Exec("PRAGMA cache_spill = ON;")
 	//db.Exec("PRAGMA journal_size_limit = 67110000;")
-	db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
-	//db.Exec("PRAGMA locking_mode = OFF;")
+	//db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
+	db.Exec("PRAGMA locking_mode = OFF;")
 	db.Exec("PRAGMA encoding = \"UTF-8\";")
-	//db.Exec("PRAGMA journal_mode = WAL;")
+	db.Exec("PRAGMA journal_mode = WAL;")
 
-	db.Exec("busy_timeout=0;")
+	//db.Exec("busy_timeout=0;")
 	db.Exec("legacy_file_format=OFF;")
 
 	//db.Exec("PRAGMA mmap_size=1099511627776;")
 	db.Exec("PRAGMA page_size = 40960;")
 
 	db.Exec("PRAGMA shrink_memory;")
-	db.Exec("PRAGMA synchronous=OFF;")
+	//db.Exec("PRAGMA synchronous=OFF;")
 	//db.Exec("PRAGMA synchronous = NORMAL;")
 	//db.Exec("PRAGMA temp_store = MEMORY;")
 	//db.Exec("PRAGMA threads = 5;")

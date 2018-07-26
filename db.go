@@ -11,6 +11,7 @@ import (
 
 func dbOpen2(filename string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", filename)
+	log.Println("Opening db file: ", filename)
 	return db, err
 }
 

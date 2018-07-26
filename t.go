@@ -78,7 +78,7 @@ func (w *RowWriterImp) Write(row *Row) error {
 }
 
 func foo() {
-	db, err := dbOpen("test1.sqlite3")
+	db, err := dbOpen2("test1.sqlite3")
 	defer db.Close()
 
 	if false {

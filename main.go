@@ -42,9 +42,10 @@ var closeOpenCount int64 = 0
 
 var empty struct{}
 
-func init() {
+func initialize() {
 
 	//defer profile.Start(profile.CPUProfile).Stop()
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
 	flag.StringVar(&dbFilename, "f", dbFilename, "SQLite output filename")
@@ -66,6 +67,7 @@ func init() {
 	}
 
 	logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
+
 }
 
 func main() {
@@ -73,6 +75,7 @@ func main() {
 		foo()
 		return
 	}
+	initialize()
 	var wg sync.WaitGroup
 	var wgExtract sync.WaitGroup
 

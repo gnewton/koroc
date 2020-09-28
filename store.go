@@ -10,7 +10,7 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-const createArticlesTable = "CREATE TABLE \"articles\" (\"abstract\" varchar(255),\"day\" integer,\"id\" integer primary key autoincrement,\"issue\" varchar(255),\"journal_id\" bigint,\"keywords_owner\" varchar(255),\"language\" varchar(255),\"month\" varchar(8),\"title\" varchar(255),\"volume\" varchar(255),\"year\" integer,\"date_revised\" bigint );"
+//const createArticlesTable = "CREATE TABLE \"articles\" (\"abstract\" varchar(255),\"day\" integer,\"id\" integer primary key autoincrement,\"issue\" varchar(255),\"journal_id\" bigint,\"keywords_owner\" varchar(255),\"language\" varchar(255),\"month\" varchar(8),\"title\" varchar(255),\"volume\" varchar(255),\"year\" integer,\"date_revised\" bigint );"
 
 const prepInsertArticle = "INSERT INTO articles (abstract,day,id,issue,journal_id,keywords_owner,language,month,title,volume,year,date_revised) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
 
@@ -177,7 +177,7 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 				if article.Version < version {
 					log.Println("NOT Updating article:", article.ID, article.Version, version)
 				} else {
-					log.Println("Updating article:", article.ID, article.Version, version)
+					log.Println("Updating article:", article.ID, "old version:", article.Version, "new version:", version)
 
 					var oldArticle pubmedSqlStructs.Article
 					tx.Where("ID = ?", article.ID).First(&oldArticle)

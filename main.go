@@ -93,8 +93,8 @@ func main() {
 
 	done := make(chan bool, 8)
 	articleAdderDone := make(chan bool)
-	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
-	//go articleAdder2(articleChannel, db, TransactionSize)
+	//go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
+	go articleAdder2(articleChannel, db, TransactionSize)
 	go committor(txChannel, done)
 
 	for i, filename := range flag.Args() {
@@ -104,21 +104,20 @@ func main() {
 	// Loop through files
 
 	n := len(flag.Args())
-	filenameChannel := make(chan string, n)
+	readFileChannel := make(chan string, n)
 
 	numExtractors := 5
 	for i := 0; i < numExtractors; i++ {
-		go readFromFileAndExtractXML(filenameChannel, &dbc, articleChannel, done)
+		go readFromFileAndExtractXML(readFileChannel, &dbc, articleChannel, done)
 	}
 
 	for _, filename := range flag.Args() {
-		filenameChannel <- filename
+		readFileChannel <- filename
 	}
-	close(filenameChannel)
+	close(readFileChannel)
 
 	//for _, _ = range flag.Args() {
 	for i := 0; i < numExtractors; i++ {
-
 		_ = <-done
 	}
 

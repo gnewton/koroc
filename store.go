@@ -17,6 +17,7 @@ const prepInsertArticle = "INSERT INTO articles (abstract,day,id,issue,journal_i
 const prepUpdateArticle = "UPDATE articles set abstract=?,day=?,id=?,issue=?,journal_id=?,keywords_owner=?,language=?,month=?,title=?,volume=?,year=?,date_revised=? where id=?"
 
 func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, commitSize int) {
+	//func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, commitSize int) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
@@ -128,6 +129,7 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 	chunkCount := 0
 	for articleArray := range articleChannel {
 		log.Println("-- Consuming chunk ", chunkCount)
+		chunkCount += 1
 
 		log.Printf("articleAdder counter=%d", counter)
 		log.Printf("TOTAL counter=%d", totalCount)

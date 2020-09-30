@@ -93,8 +93,8 @@ func main() {
 
 	done := make(chan bool, 8)
 	articleAdderDone := make(chan bool)
-	//go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
-	go articleAdder2(articleChannel, db, TransactionSize)
+	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
+	//go articleAdder2(articleChannel, db, TransactionSize)
 	go committor(txChannel, done)
 
 	for i, filename := range flag.Args() {

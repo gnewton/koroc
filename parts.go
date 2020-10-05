@@ -41,6 +41,7 @@ func makeJournal(journal *pubmedstruct.Journal) (newJournal *pubmedSqlStructs.Jo
 	return newJournal
 }
 
+// Map cache of chemicals
 var chemicalMap map[string]*pubmedSqlStructs.Chemical = make(map[string]*pubmedSqlStructs.Chemical)
 
 func makeChemicals(chemicals []*pubmedstruct.Chemical) []*pubmedSqlStructs.Chemical {
@@ -82,6 +83,7 @@ func makeKeywords(owner string, keywords []*pubmedstruct.Keyword) []*pubmedSqlSt
 	return newKeywords
 }
 
+// Map cache of keywords
 var keywordMap map[string]*pubmedSqlStructs.Keyword = make(map[string]*pubmedSqlStructs.Keyword)
 
 var kwMutex *sync.Mutex = new(sync.Mutex)

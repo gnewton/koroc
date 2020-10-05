@@ -5,6 +5,8 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/jinzhu/gorm"
@@ -115,7 +117,9 @@ func committor(transactionChannel chan *gorm.DB, done chan bool) {
 	done <- true
 }
 
-func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, txChannel chan *gorm.DB, commitSize int, done chan bool) {
+func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, commitSize int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	log.Println("Start articleAdder")
 	var err error
 	db, err = dbc.Open()
@@ -123,7 +127,7 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 		log.Fatal(err)
 	}
 	tx := db.Begin()
-	//t0 := time.Now()
+	t0 := time.Now()
 	var totalCount int64 = 0
 	counter := 0
 	chunkCount := 0
@@ -153,30 +157,33 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 			totalCount = totalCount + 1
 			closeOpenCount = closeOpenCount + 1
 			if counter == commitSize {
-				//tc0 := time.Now()
-				//tx.Commit()
-				log.Printf("Transaction channel length=%d", len(txChannel))
-				txChannel <- tx
-				//log.Println("transaction")
-				//log.Println(tx)
-				var err error
-				tx, err = dbc.Open()
-				if err != nil {
-					log.Fatal(err)
+				tc0 := time.Now()
+				tx.Commit()
+				if tx.Error != nil {
+					log.Println(tx.Error)
+					handleDbErrors(tx.GetErrors())
 				}
-				//t1 := time.Now()
-				//log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
-				//log.Printf("The call took %v to run.\n", t1.Sub(t0))
-				//t0 = time.Now()
+				log.Println("transaction")
+				log.Println(tx)
+
+				// var err error
+				// tx, err = dbc.Open()
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+				t1 := time.Now()
+				log.Printf("The commit took %v to run.\n", t1.Sub(tc0))
+				log.Printf("The call took %v to run.\n", t1.Sub(t0))
+				t0 = time.Now()
 				counter = 0
-				tx = tx.Begin()
-				//log.Println("transaction")
-				//log.Println(tx)
+				tx = dbc.DB().Begin()
+				log.Println("transaction")
+				log.Println(tx)
 			}
 			var err error
 			if version, ok := articleIdsInDBCache[article.ID]; ok {
 				// the article version is not more recent than the one already stored
-				if article.Version < version {
+				if article.Version <= version {
 					log.Println("NOT Updating article:", article.ID, article.Version, version)
 				} else {
 					log.Println("Updating article:", article.ID, "old version:", article.Version, "new version:", version)
@@ -186,11 +193,15 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 					tx.Delete(oldArticle)
 
 					//err = tx.Update(article).Error
-					err = tx.Create(article).Error
+					if err := tx.Create(article).Error; err != nil {
+						log.Fatal(err)
+					}
 				}
 
 			} else {
-				err = tx.Create(article).Error
+				if err := tx.Create(article).Error; err != nil {
+					log.Fatal(err)
+				}
 				articleIdsInDBCache[article.ID] = article.Version
 			}
 
@@ -208,36 +219,43 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 				//log.Println("Returning from articleAdder")
 				//log.Fatal(" Fatal\\\\\\\\\\\\\\\\")
 				//return
-				tx = db.Begin()
+				log.Fatal(err)
 			}
 
 		}
 		log.Println("-- END chunk ", chunkCount)
 	}
 	if !doNotWriteToDbFlag {
-		tx.Commit()
-		var err error
-		tx, err = dbc.Open()
+		log.Println("Final commit")
+		db := tx.Commit()
+		if db.Error != nil {
+			log.Fatal(db.Error)
+		}
+		if tx.Error != nil {
+			log.Fatal(tx.Error)
+		}
+
+		db, err = dbc.Open()
 		if err != nil {
 			log.Fatal(err)
 		}
-		makeIndexes(tx)
+		log.Println("Making indexes")
+		makeIndexes(db)
 	}
-	close(txChannel)
+	log.Println("-- Close DB")
 	db.Close()
-	log.Println("-- END articleAdder")
-	done <- true
+
 	log.Println("++ END articleAdder")
 }
 
 var dateSeasonYear = []string{"Summer", "Winter", "Spring", "Fall"}
 
-func medlineDate2Year(md string) int {
+func medlineDate2Year(md string) uint16 {
 	// Other cases:
 	//   Fall 2017; 8/15/12; Spring 2017; Summer 2017; Fall 2017;
 
 	// case <MedlineDate>1952 Mar-Apr</MedlineDate>
-	var year int
+	var year uint16
 	var err error
 
 	// case 2000-2001
@@ -248,35 +266,42 @@ func medlineDate2Year(md string) int {
 			return seasonYear(md)
 		}
 	}
-
+	var tmp uint64
 	if len(md) == 5 {
-		year, err = strconv.Atoi(md)
+		//year, err = strconv.Atoi(md)
+		tmp, err = strconv.ParseUint(md, 10, 16)
 		if err != nil {
 			log.Println("error!! ", err)
-			year = 0
+			tmp = 0
 		}
-		return year
+		return uint16(tmp)
 	}
+
 	if len(md) >= 5 && string(md[4]) == string('-') {
 		yearStrings := strings.Split(md, "-")
 		//case 1999-00
 		if len(yearStrings[1]) != 4 {
-			year, err = strconv.Atoi(yearStrings[0])
+			//year, err = strconv.Atoi(yearStrings[0])
+			tmp, err = strconv.ParseUint(yearStrings[0], 10, 16)
 		} else {
-			year, err = strconv.Atoi(yearStrings[1])
+			//year, err = strconv.Atoi(yearStrings[1])
+			tmp, err = strconv.ParseUint(yearStrings[1], 10, 16)
 		}
 		if err != nil {
 			log.Println("error!! ", err)
 		}
+		year = uint16(tmp)
 	} else {
 		// case 1999 June 6
 		yearString := strings.TrimSpace(strings.Split(md, " ")[0])
 		yearString = yearString[0:4]
 		//year, err = strconv.Atoi(strings.TrimSpace(strings.Split(md, " ")[0]))
-		year, err = strconv.Atoi(yearString)
+		//year, err = strconv.Atoi(yearString)
+		tmp, err = strconv.ParseUint(yearString, 10, 16)
 		if err != nil {
 			log.Println("error!! yearString=[", yearString, "]", err)
 		}
+		year = uint16(tmp)
 	}
 	if year == 0 {
 		log.Println("medlineDate2Year [", md, "] [", strings.TrimSpace(string(md[4])), "]")
@@ -285,11 +310,19 @@ func medlineDate2Year(md string) int {
 
 }
 
-func seasonYear(md string) int {
+func seasonYear(md string) uint16 {
 	parts := strings.Split(md, " ")
-	year, err := strconv.Atoi(parts[1])
+	tmp, err := strconv.ParseUint(parts[1], 10, 16)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return year
+
+	return uint16(tmp)
+}
+
+func handleDbErrors(errors []error) {
+	for i, e := range errors {
+		log.Println(i, e)
+	}
+	log.Fatal("Errors")
 }

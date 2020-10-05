@@ -5,36 +5,62 @@ import (
 	"io"
 	"log"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
 )
 
 // Reads from the channel arrays of pubmedarticles and
-func readFromFileAndExtractXML(c chan string, dbc *DBConnector, articleChannel chan []*pubmedSqlStructs.Article, done chan bool) {
+func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConnector, articleChannel chan []*pubmedSqlStructs.Article, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	articleArray := make([]*pubmedSqlStructs.Article, chunkSize)
-	for filename := range c {
+
+	count := 0
+	chunkCounter := 0
+
+	for filename := range readFileChannel {
 		if filename == "" {
 			break
 		}
-		log.Println("Opening: " + filename)
-		reader, _, err := genericReader(filename)
+		log.Println(id, "Opening: "+filename)
+		reader, file, err := genericReader(filename)
 
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
 
+		defer func() {
+			log.Println(id, "Closing reader")
+			err := reader.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+		defer func() {
+			stat, err := file.Stat()
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Println(id, "Closing file:", stat.Name())
+			err = file.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+
 		decoder := xml.NewDecoder(reader)
 		counters = make(map[string]*int)
 
-		count := 0
-
+		t0 := time.Now()
 		// Loop through XML
 		for {
 
 			if recordPerFileCounter == LoadNRecordsPerFile {
-				log.Println("break file load. LoadNRecordsPerFile", count, LoadNRecordsPerFile)
+				log.Println(id, "break file load. LoadNRecordsPerFile", count, LoadNRecordsPerFile)
 				recordPerFileCounter = 0
 				break
 			}
@@ -43,7 +69,7 @@ func readFromFileAndExtractXML(c chan string, dbc *DBConnector, articleChannel c
 				if err == io.EOF {
 					break
 				}
-				log.Println("Fatal error in file:", filename)
+				log.Println(id, "Fatal error in file:", filename)
 				//log.Fatal(err)
 			}
 			if token == nil {
@@ -53,40 +79,48 @@ func readFromFileAndExtractXML(c chan string, dbc *DBConnector, articleChannel c
 			case xml.StartElement:
 				if se.Name.Local == PUBMED_ARTICLE && se.Name.Space == "" {
 					if count%10000 == 0 && count != 0 {
-						log.Printf("count=%d\n", count)
+						log.Printf("%d count=%d\n", id, count)
 					}
 
 					count = count + 1
 					recordPerFileCounter = recordPerFileCounter + 1
 					var pubmedArticle pubmedstruct.PubmedArticle
 					decoder.DecodeElement(&pubmedArticle, &se)
-					article := pubmedArticleToDbArticle(&pubmedArticle)
+					article := pubmedArticleToDbArticle(&pubmedArticle, false)
 					if article == nil {
-						log.Println("-----------------nil")
+						log.Println(id, "-----------------nil")
 						continue
 					}
 					articleArray[count] = article
 					if count == chunkSize-1 {
+						t1 := time.Now()
+						log.Printf("%d Chunk Time to build: %v \n", id, t1.Sub(t0))
+						log.Println(id, "Pushing chunk", chunkCounter)
+						tc0 := time.Now()
 						articleChannel <- articleArray
+						tc1 := time.Now()
+						log.Printf("%d Chunk Time to accept: %v \n", id, tc1.Sub(tc0))
+						log.Println(id, "Done pushing chunk", chunkCounter, "len channel=", len(articleChannel))
+						chunkCounter++
 						articleArray = make([]*pubmedSqlStructs.Article, chunkSize)
 						count = 0
+						t0 = time.Now()
 					}
 
 				}
 			}
 		}
 	}
-
+	log.Println(id, "Extract PRE-END")
 	// Is there something not yet sent in the articleArray?
 	if len(articleArray) > 0 {
 		articleChannel <- articleArray
 	}
 
-	done <- true
+	log.Println(id, "Extract END")
 }
 
-func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.Article {
-
+func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract bool) *pubmedSqlStructs.Article {
 	medlineCitation := p.MedlineCitation
 	pArticle := medlineCitation.Article
 	if pArticle == nil {
@@ -95,39 +129,56 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 	}
 	var err error
 	dbArticle := new(pubmedSqlStructs.Article)
-	dbArticle.ID, err = strconv.ParseInt(p.MedlineCitation.PMID.Text, 10, 64)
+	//dbArticle.ID, err = strconv.ParseInt(p.MedlineCitation.PMID.Text, 10, 32)
+	//tmp, err := strconv.Atoi(p.MedlineCitation.PMID.Text)
+	tmp, err := strconv.ParseUint(p.MedlineCitation.PMID.Text, 10, 32)
 	if err != nil {
 		log.Println(err)
 	}
 
-	dbArticle.Version, err = strconv.Atoi(p.MedlineCitation.PMID.Attr_Version)
-	if err != nil {
-		log.Println(err)
-	}
+	dbArticle.ID = uint32(tmp)
+
+	// Title
+	dbArticle.Title = pArticle.ArticleTitle.Text
 
 	// Abstract
-	dbArticle.Abstract = ""
 	if pArticle.Abstract != nil && pArticle.Abstract.AbstractText != nil {
 		for i, _ := range pArticle.Abstract.AbstractText {
 			dbArticle.Abstract = dbArticle.Abstract + " " + pArticle.Abstract.AbstractText[i].Text
 		}
 	}
 
-	// Title
-	dbArticle.Title = pArticle.ArticleTitle.Text
+	if onlyTitleAbstract {
+		return dbArticle
+	}
+
+	tmpi, err := strconv.ParseUint(p.MedlineCitation.PMID.Attr_Version, 10, 8)
+	if err != nil {
+		log.Println(err)
+	}
+	dbArticle.Version = uint8(tmpi)
 
 	// DateRevised
 	if p.MedlineCitation.DateRevised != nil {
 		d := p.MedlineCitation.DateRevised.Year.Text + p.MedlineCitation.DateRevised.Month.Text + p.MedlineCitation.DateRevised.Day.Text
-		dbArticle.DateRevised, err = strconv.ParseInt(d, 10, 64)
+		dbArticle.DateRevised, err = strconv.ParseUint(d, 10, 64)
+		if err != nil {
+			log.Println(err)
+		}
 	} else {
 		if p.MedlineCitation.DateCompleted != nil {
 			d := p.MedlineCitation.DateCompleted.Year.Text + p.MedlineCitation.DateCompleted.Month.Text + p.MedlineCitation.DateCompleted.Day.Text
-			dbArticle.DateRevised, err = strconv.ParseInt(d, 10, 64)
+			dbArticle.DateRevised, err = strconv.ParseUint(d, 10, 64)
+			if err != nil {
+				log.Println(err)
+			}
 		} else {
 			if p.MedlineCitation.DateCreated != nil {
 				d := p.MedlineCitation.DateCreated.Year.Text + p.MedlineCitation.DateCreated.Month.Text + p.MedlineCitation.DateCreated.Day.Text
-				dbArticle.DateRevised, err = strconv.ParseInt(d, 10, 64)
+				dbArticle.DateRevised, err = strconv.ParseUint(d, 10, 64)
+				if err != nil {
+					log.Println(err)
+				}
 			} else {
 				log.Println(p.MedlineCitation)
 			}
@@ -145,11 +196,12 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 		if pArticle.Journal.JournalIssue != nil {
 			if pArticle.Journal.JournalIssue.PubDate != nil {
 				if pArticle.Journal.JournalIssue.PubDate.Year != nil {
-					dbArticle.Year, err = strconv.Atoi(pArticle.Journal.JournalIssue.PubDate.Year.Text)
-
+					//dbArticle.Year, err = strconv.Atoi(pArticle.Journal.JournalIssue.PubDate.Year.Text)
+					tmpi, err = strconv.ParseUint(pArticle.Journal.JournalIssue.PubDate.Year.Text, 10, 16)
 					if err != nil {
 						log.Println(err)
 					}
+					dbArticle.Year = uint16(tmpi)
 
 				} else {
 					if pArticle.Journal.JournalIssue.PubDate.MedlineDate == nil || pArticle.Journal.JournalIssue.PubDate.MedlineDate.Text == "" {
@@ -162,10 +214,11 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 					dbArticle.Month = pArticle.Journal.JournalIssue.PubDate.Month.Text
 				}
 				if pArticle.Journal.JournalIssue.PubDate.Day != nil {
-					dbArticle.Day, err = strconv.Atoi(pArticle.Journal.JournalIssue.PubDate.Day.Text)
+					tmpi, err = strconv.ParseUint(pArticle.Journal.JournalIssue.PubDate.Day.Text, 10, 8)
 					if err != nil {
 						log.Println(err)
 					}
+					dbArticle.Day = uint8(tmpi)
 				}
 			} else {
 				log.Println("Journal.JournalIssue.PubDate=nil pmid=", dbArticle.ID)
@@ -199,15 +252,16 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 
 		dbArticle.Citations = make([]*pubmedSqlStructs.Citation, actualCitationCount)
 		counter := 0
-		var err error
+
 		for i, _ := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
 			commentsCorrection := medlineCitation.CommentsCorrectionsList.CommentsCorrections[i]
 			if commentsCorrection.Attr_RefType == CommentsCorrections_RefType {
 				citation := new(pubmedSqlStructs.Citation)
-				citation.ID, err = strconv.ParseInt(commentsCorrection.PMID.Text, 10, 64)
+				tmp, err := strconv.ParseUint(commentsCorrection.PMID.Text, 10, 32)
 				if err != nil {
 					log.Println(err)
 				}
+				citation.ID = uint32(tmp)
 				//citation.RefSource = commentsCorrection.RefSource.Text
 				//citation.ID = commentsCorrection.RefSource.Text
 				dbArticle.Citations[counter] = citation
@@ -241,10 +295,11 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 
 		}()
 
-		foo := makeJournal(pArticle.Journal)
-		dbArticle.Journal = foo
+		newJournal := makeJournal(pArticle.Journal)
+		dbArticle.Journal = newJournal
 	}
 
+	// Publication Type
 	if pArticle.PublicationTypeList != nil && pArticle.PublicationTypeList.PublicationType != nil {
 		dbArticle.PublicationTypes = make([]*pubmedSqlStructs.PublicationType, len(pArticle.PublicationTypeList.PublicationType))
 		for i, _ := range pArticle.PublicationTypeList.PublicationType {
@@ -259,6 +314,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle) *pubmedSqlStructs.A
 		}
 	}
 
+	// Author list
 	if pArticle.AuthorList != nil {
 		dbArticle.Authors = make([]pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
 		for i, _ := range pArticle.AuthorList.Author {

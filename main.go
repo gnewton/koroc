@@ -2,16 +2,19 @@ package main
 
 import (
 	"database/sql"
+
 	"flag"
 	"io"
 	"io/ioutil"
 	"log"
 	"math"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/jinzhu/gorm"
+	"github.com/pkg/profile"
 )
 
 var TransactionSize = 100000
@@ -26,6 +29,7 @@ var sqliteLogFlag = false
 var LoadNRecordsPerFile int64 = math.MaxInt64
 var recordPerFileCounter int64 = 0
 var doNotWriteToDbFlag = false
+var loggingFlag = false
 
 const CommentsCorrections_RefType = "Cites"
 const PUBMED_ARTICLE = "PubmedArticle"
@@ -33,7 +37,7 @@ const PUBMED_ARTICLE = "PubmedArticle"
 var out int = -1
 var JournalIdCounter int64 = 0
 var counters map[string]*int
-var articleIdsInDBCache map[int64]int = make(map[int64]int, 100000)
+var articleIdsInDBCache map[uint32]uint8 = make(map[uint32]uint8, 100000)
 var closeOpenCount int64 = 0
 
 var empty struct{}
@@ -43,6 +47,7 @@ func init() {
 	//defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
+	flag.BoolVar(&loggingFlag, "l", loggingFlag, "Turn on verbose logging")
 	flag.StringVar(&dbFilename, "f", dbFilename, "SQLite output filename")
 	flag.StringVar(&meshFileName, "m", meshFileName, "MeSH descriptor sqlite3 filename")
 
@@ -61,11 +66,11 @@ func init() {
 		os.Exit(1)
 	}
 
-	logInit(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
+	logInit(loggingFlag, ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 }
 
 func main() {
-
+	defer profile.Start(profile.MemProfile).Stop()
 	if meshFileName != "" {
 		loadMesh(meshFileName)
 	}
@@ -79,6 +84,7 @@ func main() {
 		return
 	}
 	defer func() {
+		log.Println("Closing database")
 		err = db.Close()
 		if err != nil {
 			log.Fatal(err)
@@ -87,42 +93,43 @@ func main() {
 
 	dbInit(db)
 	db.Close()
+	numExtractors := 12
+	articleChannel := make(chan []*pubmedSqlStructs.Article, numExtractors*3)
 
-	articleChannel := make(chan []*pubmedSqlStructs.Article, 20)
-	txChannel := make(chan *gorm.DB, 5)
+	var addWg sync.WaitGroup
+	var extractWg sync.WaitGroup
 
-	done := make(chan bool, 8)
-	articleAdderDone := make(chan bool)
-	go articleAdder(articleChannel, &dbc, db, txChannel, TransactionSize, articleAdderDone)
+	addWg.Add(1)
+	go articleAdder(articleChannel, &dbc, db, TransactionSize, &addWg)
 	//go articleAdder2(articleChannel, db, TransactionSize)
-	go committor(txChannel, done)
 
 	for i, filename := range flag.Args() {
 		log.Println(i, " -- Input file: "+filename)
 	}
 
 	// Loop through files
-
 	n := len(flag.Args())
 	readFileChannel := make(chan string, n)
 
-	numExtractors := 5
 	for i := 0; i < numExtractors; i++ {
-		go readFromFileAndExtractXML(readFileChannel, &dbc, articleChannel, done)
+		extractWg.Add(1)
+		go readFromFileAndExtractXML(i, readFileChannel, &dbc, articleChannel, &extractWg)
 	}
 
 	for _, filename := range flag.Args() {
+		log.Println("Pushing file into channel", filename)
 		readFileChannel <- filename
 	}
+	log.Println("Done pushing files")
 	close(readFileChannel)
-
-	//for _, _ = range flag.Args() {
-	for i := 0; i < numExtractors; i++ {
-		_ = <-done
-	}
-
+	log.Println("readFileChannel closed")
+	extractWg.Wait()
+	log.Println("Post 	extractWg.Wait")
 	close(articleChannel)
-	_ = <-articleAdderDone
+	log.Println("articleChannel closed")
+	addWg.Wait()
+	log.Println("Post 	addWg.Wait")
+
 }
 
 // From: http://www.goinggo.net/2013/11/using-log-package-in-go.html
@@ -134,10 +141,16 @@ var (
 )
 
 func logInit(
+	loggingFlag bool,
 	traceHandle io.Writer,
 	infoHandle io.Writer,
 	warningHandle io.Writer,
 	errorHandle io.Writer) {
+
+	if !loggingFlag {
+		log.SetOutput(ioutil.Discard)
+		return
+	}
 
 	Trace = log.New(traceHandle,
 		"TRACE: ",
@@ -160,13 +173,20 @@ const selectArticleIDs = "select id from articles"
 
 type DBConnector struct {
 	dbFilename string
+	gdb        *gorm.DB
 }
 
 func (dbc *DBConnector) Open() (*gorm.DB, error) {
-	return gorm.Open("sqlite3", dbc.dbFilename)
+	var err error
+	dbc.gdb, err = gorm.Open("sqlite3", dbc.dbFilename)
+	return dbc.gdb, err
 }
 
-func makeArticleIdsInDBCache(db *sql.DB) (map[int64]struct{}, error) {
+func (dbc *DBConnector) DB() *gorm.DB {
+	return dbc.gdb
+}
+
+func makeArticleIdsInDBCache(db *sql.DB) (map[int32]struct{}, error) {
 	tx, err := db.Begin()
 	defer tx.Commit()
 	if err != nil {
@@ -179,11 +199,11 @@ func makeArticleIdsInDBCache(db *sql.DB) (map[int64]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	articleIdsInDB := make(map[int64]struct{}, 10000)
+	articleIdsInDB := make(map[int32]struct{}, 10000)
 	count := 0
 	for rows.Next() {
 		count += 1
-		var id int64
+		var id int32
 		err = rows.Scan(&id)
 		if err != nil {
 			return nil, err

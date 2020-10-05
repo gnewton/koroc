@@ -9,7 +9,7 @@ import (
 )
 
 func dbInit(db *gorm.DB) {
-	log.Printf("%v\n", *db)
+	log.Printf("%v\n", db)
 
 	db.CreateTable(&pubmedSqlStructs.Article{})
 	db.CreateTable(&pubmedSqlStructs.Author{})

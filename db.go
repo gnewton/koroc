@@ -30,28 +30,22 @@ func dbOpen(filename string) (*gorm.DB, error) {
 }
 
 func sqlite3Config(db *sql.DB) {
-	//db.Exec("PRAGMA auto_vacuum = 0;")
-	//db.Exec("PRAGMA cache_size=32768;")
-	//db.Exec("PRAGMA cache_size=65536;")
-	db.Exec("PRAGMA cache_size=1000000;")
-	db.Exec("PRAGMA count_changes = OFF;")
+
+	db.Exec("PRAGMA cache_size=10000;")
 	db.Exec("PRAGMA cache_spill = ON;")
-	//db.Exec("PRAGMA journal_size_limit = 67110000;")
-	db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
-	//db.Exec("PRAGMA locking_mode = OFF;")
+	db.Exec("PRAGMA count_changes = OFF;")
 	db.Exec("PRAGMA encoding = \"UTF-8\";")
-	db.Exec("PRAGMA journal_mode = WAL;")
-	//db.Exec("PRAGMA journal_mode = MEMORY;")
-
-	db.Exec("PRAGMA main.synchronous=NORMAL;")
-
-	//db.Exec("busy_timeout=0;")
+	db.Exec("PRAGMA journal_mode = delete;")
+	db.Exec("PRAGMA locking_mode = EXCLUSIVE;")
+	//db.Exec("PRAGMA main.synchronous=NORMAL;")
+	db.Exec("PRAGMA page_size = 4096;")
+	db.Exec("PRAGMA shrink_memory;")
+	db.Exec("PRAGMA synchronous = off;")
+	db.Exec("PRAGMA temp_store = memory;")
 	db.Exec("legacy_file_format=OFF;")
 
 	//db.Exec("PRAGMA mmap_size=1099511627776;")
-	db.Exec("PRAGMA page_size = 4096;")
 
-	db.Exec("PRAGMA shrink_memory;")
 	//db.Exec("PRAGMA synchronous=OFF;")
 	//db.Exec("PRAGMA synchronous = NORMAL;")
 	//db.Exec("PRAGMA temp_store = MEMORY;")

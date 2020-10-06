@@ -3,14 +3,15 @@ package main
 import (
 	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
-	//"log"
+	"log"
 	"sync"
 )
 
 var journalMap map[string]*pubmedSqlStructs.Journal = make(map[string]*pubmedSqlStructs.Journal)
 var journalMutex *sync.Mutex = new(sync.Mutex)
 
-func makeJournal(journal *pubmedstruct.Journal) (newJournal *pubmedSqlStructs.Journal) {
+func makeJournal(journal *pubmedstruct.Journal) *pubmedSqlStructs.Journal {
+	var newJournal *pubmedSqlStructs.Journal
 	mapKey := ""
 
 	if journal.ISOAbbreviation == nil && journal.ISSN == nil {
@@ -27,7 +28,7 @@ func makeJournal(journal *pubmedstruct.Journal) (newJournal *pubmedSqlStructs.Jo
 	var ok bool
 	journalMutex.Lock()
 	if newJournal, ok = journalMap[mapKey]; !ok {
-		newJournal := new(pubmedSqlStructs.Journal)
+		newJournal = new(pubmedSqlStructs.Journal)
 		if journal.ISOAbbreviation != nil {
 			newJournal.IsoAbbreviation = journal.ISOAbbreviation.Text
 		}
@@ -35,6 +36,7 @@ func makeJournal(journal *pubmedstruct.Journal) (newJournal *pubmedSqlStructs.Jo
 			newJournal.Issn = journal.ISSN.Text
 		}
 		newJournal.Title = journal.Title.Text
+		log.Println("new journal:", journal.Title.Text)
 		journalMap[mapKey] = newJournal
 	}
 	journalMutex.Unlock()

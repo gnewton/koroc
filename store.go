@@ -12,93 +12,6 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-//const createArticlesTable = "CREATE TABLE \"articles\" (\"abstract\" varchar(255),\"day\" integer,\"id\" integer primary key autoincrement,\"issue\" varchar(255),\"journal_id\" bigint,\"keywords_owner\" varchar(255),\"language\" varchar(255),\"month\" varchar(8),\"title\" varchar(255),\"volume\" varchar(255),\"year\" integer,\"date_revised\" bigint );"
-
-const prepInsertArticle = "INSERT INTO articles (abstract,day,id,issue,journal_id,keywords_owner,language,month,title,volume,year,date_revised) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
-
-const prepUpdateArticle = "UPDATE articles set abstract=?,day=?,id=?,issue=?,journal_id=?,keywords_owner=?,language=?,month=?,title=?,volume=?,year=?,date_revised=? where id=?"
-
-func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, commitSize int) {
-	//func articleAdder2(articleChannel chan []*pubmedSqlStructs.Article, db *sql.DB, commitSize int) {
-	tx, err := db.Begin()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	stmtInsert, err := tx.Prepare(prepInsertArticle)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	stmtUpdate, err := tx.Prepare(prepUpdateArticle)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	chunkCount := 0
-	var totalCount int64 = 0
-	counter := 0
-	for articleArray := range articleChannel {
-		log.Println("-- Consuming chunk ", chunkCount)
-		chunkCount += 1
-
-		for i := 0; i < len(articleArray); i++ {
-			a := articleArray[i]
-
-			if a == nil {
-				continue
-			}
-
-			// Have we already inserted this article (i.e. is this an update?)
-			if _, ok := articleIdsInDBCache[a.ID]; ok {
-				log.Println("Updating article:", a.ID)
-				_, err = stmtUpdate.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised, a.ID)
-			} else {
-				articleIdsInDBCache[a.ID] = a.Version
-				_, err = stmtInsert.Exec(a.Abstract, a.Day, a.ID, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
-
-			}
-
-			if err != nil {
-				log.Println(err)
-				if err.Error() == "UNIQUE constraint failed: articles.id" {
-					log.Println("*** ", a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
-					continue
-				}
-				log.Println(a.ID, "|||", a.Abstract, a.Day, a.Issue, a.JournalID, a.KeywordsOwner, a.Language, a.Month, a.Title, a.Volume, a.Year, a.DateRevised)
-				log.Fatal(err)
-			}
-
-			counter = counter + 1
-			totalCount = totalCount + 1
-			if counter == commitSize {
-				counter = 0
-				log.Println("************ committing", totalCount)
-				tx.Commit()
-				stmtInsert.Close()
-				stmtUpdate.Close()
-				tx, err = db.Begin()
-				if err != nil {
-					log.Fatal(err)
-				}
-				stmtInsert, err = tx.Prepare(prepInsertArticle)
-				if err != nil {
-					log.Fatal(err)
-				}
-				stmtUpdate, err = tx.Prepare(prepUpdateArticle)
-				if err != nil {
-					log.Fatal(err)
-				}
-			}
-		}
-	}
-	tx.Commit()
-	stmtInsert.Close()
-	stmtUpdate.Close()
-	db.Close()
-
-}
-
 func updateArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
 	return nil, nil
 }
@@ -107,17 +20,8 @@ func insertArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
 	return nil, nil
 }
 
-func committor(transactionChannel chan *gorm.DB, done chan bool) {
-	for tx := range transactionChannel {
-		log.Println("COMMIT starting")
-		tx.Commit()
-		tx.Close()
-		log.Println("COMMIT done")
-	}
-	done <- true
-}
-
-func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, commitSize int, wg *sync.WaitGroup) {
+//func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnector, db *gorm.DB, commitSize int, wg *sync.WaitGroup) {
+func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *gorm.DB, commitSize int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	log.Println("Start articleAdder")
@@ -126,12 +30,14 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 	if err != nil {
 		log.Fatal(err)
 	}
+	db.LogMode(true)
 	tx := db.Begin()
 	t0 := time.Now()
 	var totalCount int64 = 0
 	counter := 0
 	chunkCount := 0
-	for articleArray := range articleChannel {
+	for env := range articleChannel {
+		articleArray := env.articles
 		log.Println("-- Consuming chunk ", chunkCount)
 		chunkCount += 1
 
@@ -181,7 +87,9 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 				log.Println(tx)
 			}
 			var err error
+			// New Version
 			if version, ok := articleIdsInDBCache[article.ID]; ok {
+				log.Println("$$$$$$$$$$$$$$$$$$$$$$$$$")
 				// the article version is not more recent than the one already stored
 				if article.Version <= version {
 					log.Println("NOT Updating article:", article.ID, article.Version, version)
@@ -189,17 +97,38 @@ func articleAdder(articleChannel chan []*pubmedSqlStructs.Article, dbc *DBConnec
 					log.Println("Updating article:", article.ID, "old version:", article.Version, "new version:", version)
 
 					var oldArticle pubmedSqlStructs.Article
-					tx.Where("ID = ?", article.ID).First(&oldArticle)
-					tx.Delete(oldArticle)
-
-					//err = tx.Update(article).Error
-					if err := tx.Create(article).Error; err != nil {
+					if err := tx.Where("ID = ?", article.ID).First(&oldArticle).Error; err != nil {
 						log.Fatal(err)
 					}
+					if err := tx.Unscoped().Delete(oldArticle).Error; err != nil {
+						//if err := tx.Delete(oldArticle).Error; err != nil {
+						log.Fatal(err)
+					}
+
+					if err := tx.Save(article).Error; err != nil {
+						// if err := tx.Update(article).Error; err != nil {
+						log.Fatal(err)
+					}
+
+					//if err := tx.Create(article).Error; err != nil {
+					//log.Fatal(err)
+					//}
 				}
 
 			} else {
+				log.Println(".........")
+				if len(article.Keywords) > 0 {
+					for _, kw := range article.Keywords {
+						var zkw pubmedSqlStructs.Keyword
+						result := tx.Where(&pubmedSqlStructs.Keyword{Name: kw.Name}).Find(&zkw)
+						log.Println(".........", zkw, result.RowsAffected, kw.Name)
+						if result.RowsAffected != 0 {
+							db.Preload("Keywords").Where(article).Find(&article).Association("Keywords").Append(&zkw)
+						}
+					}
+				}
 				if err := tx.Create(article).Error; err != nil {
+					//if err := tx.Save(article).Error; err != nil {
 					log.Fatal(err)
 				}
 				articleIdsInDBCache[article.ID] = article.Version

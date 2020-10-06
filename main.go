@@ -37,10 +37,15 @@ const PUBMED_ARTICLE = "PubmedArticle"
 var out int = -1
 var JournalIdCounter int64 = 0
 var counters map[string]*int
-var articleIdsInDBCache map[uint32]uint8 = make(map[uint32]uint8, 100000)
+var articleIdsInDBCache map[uint]uint8 = make(map[uint]uint8, 100000)
 var closeOpenCount int64 = 0
 
 var empty struct{}
+
+type ArticlesEnvelope struct {
+	articles []*pubmedSqlStructs.Article
+	n        int
+}
 
 func init() {
 
@@ -90,18 +95,18 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-
+	db.LogMode(true)
 	dbInit(db)
 	db.Close()
 	numExtractors := 12
-	articleChannel := make(chan []*pubmedSqlStructs.Article, numExtractors*3)
+	//articleChannel := make(chan []*pubmedSqlStructs.Article, numExtractors*3)
+	articleChannel := make(chan ArticlesEnvelope, numExtractors*3)
 
 	var addWg sync.WaitGroup
 	var extractWg sync.WaitGroup
 
 	addWg.Add(1)
 	go articleAdder(articleChannel, &dbc, db, TransactionSize, &addWg)
-	//go articleAdder2(articleChannel, db, TransactionSize)
 
 	for i, filename := range flag.Args() {
 		log.Println(i, " -- Input file: "+filename)
@@ -114,6 +119,7 @@ func main() {
 	for i := 0; i < numExtractors; i++ {
 		extractWg.Add(1)
 		go readFromFileAndExtractXML(i, readFileChannel, &dbc, articleChannel, &extractWg)
+
 	}
 
 	for _, filename := range flag.Args() {

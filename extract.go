@@ -12,8 +12,16 @@ import (
 	"github.com/gnewton/pubmedstruct"
 )
 
+// <PublicationType UI="D016441">Retracted Publication</PublicationType> - pubmed20n1300.xml
+const RetractedMesh1 = "D016440"
+
+// <PublicationType UI="D016440">Retraction of Publication</PublicationType> - pubmed20n1300.xml
+const RetractedMesh2 = "D016441"
+
 // Reads from the channel arrays of pubmedarticles and
-func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConnector, articleChannel chan []*pubmedSqlStructs.Article, wg *sync.WaitGroup) {
+//func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConnector, articleChannel chan []*pubmedSqlStructs.Article, wg *sync.WaitGroup) {
+
+func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConnector, articleChannel chan ArticlesEnvelope, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	articleArray := make([]*pubmedSqlStructs.Article, chunkSize)
@@ -93,14 +101,20 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 					}
 					articleArray[count] = article
 					if count == chunkSize-1 {
+
 						t1 := time.Now()
 						log.Printf("%d Chunk Time to build: %v \n", id, t1.Sub(t0))
-						log.Println(id, "Pushing chunk", chunkCounter)
+						log.Println(id, "Pushing chunk", chunkCounter, " len chunk=", len(articleArray))
+						log.Println(id, "Done pushing chunk", chunkCounter, "len channel=", len(articleArray))
 						tc0 := time.Now()
-						articleChannel <- articleArray
+						env := new(ArticlesEnvelope)
+						env.articles = articleArray
+						env.n = len(articleArray)
+						//articleChannel <- articleArray
+						articleChannel <- *env
 						tc1 := time.Now()
 						log.Printf("%d Chunk Time to accept: %v \n", id, tc1.Sub(tc0))
-						log.Println(id, "Done pushing chunk", chunkCounter, "len channel=", len(articleChannel))
+
 						chunkCounter++
 						articleArray = make([]*pubmedSqlStructs.Article, chunkSize)
 						count = 0
@@ -114,7 +128,12 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 	log.Println(id, "Extract PRE-END")
 	// Is there something not yet sent in the articleArray?
 	if len(articleArray) > 0 {
-		articleChannel <- articleArray
+		//
+		env := new(ArticlesEnvelope)
+		env.articles = articleArray
+		env.n = len(articleArray)
+		//articleChannel <- articleArray
+		articleChannel <- *env
 	}
 
 	log.Println(id, "Extract END")
@@ -136,7 +155,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		log.Println(err)
 	}
 
-	dbArticle.ID = uint32(tmp)
+	dbArticle.ID = uint(tmp)
 
 	// Title
 	dbArticle.Title = pArticle.ArticleTitle.Text
@@ -227,9 +246,9 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 
 	}
 
-	//if medlineCitation.OtherID != nil {
-	//dbArticle.OtherId = medlineCitation.OtherID
-	//}
+	if medlineCitation.OtherID != nil {
+		dbArticle.OtherIds = makeOtherIds(medlineCitation.OtherID)
+	}
 
 	if medlineCitation.KeywordList != nil && medlineCitation.KeywordList.Keyword != nil && len(medlineCitation.KeywordList.Keyword) > 0 {
 		dbArticle.Keywords = makeKeywords(medlineCitation.KeywordList.Attr_Owner, medlineCitation.KeywordList.Keyword)
@@ -261,7 +280,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 				if err != nil {
 					log.Println(err)
 				}
-				citation.ID = uint32(tmp)
+				citation.PMID = uint32(tmp)
 				//citation.RefSource = commentsCorrection.RefSource.Text
 				//citation.ID = commentsCorrection.RefSource.Text
 				dbArticle.Citations[counter] = citation
@@ -284,19 +303,13 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		dbArticle.MeshDescriptors = makeMeshDescriptors(medlineCitation.MeshHeadingList.MeshHeading)
 	}
 
-	if pArticle.Journal != nil {
-		defer func() {
-			// recover from panic if one occured. Set err to nil otherwise.
-			err := recover()
-			if err != nil {
-				log.Println("@@@@@@@@@@@@@@@@@@@@@@@ ", dbArticle.ID)
-				log.Panic(err)
-			}
-
-		}()
-
+	// Journalo
+	if pArticle.Journal == nil {
+		log.Println(dbArticle.ID, pArticle)
+		log.Fatal("Article journal is nil")
+	} else {
 		newJournal := makeJournal(pArticle.Journal)
-		dbArticle.Journal = newJournal
+		dbArticle.Journal = *newJournal
 	}
 
 	// Publication Type
@@ -304,7 +317,8 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		dbArticle.PublicationTypes = make([]*pubmedSqlStructs.PublicationType, len(pArticle.PublicationTypeList.PublicationType))
 		for i, _ := range pArticle.PublicationTypeList.PublicationType {
 			pubType := pArticle.PublicationTypeList.PublicationType[i]
-			if pubType.Text == "Retracted Publication" || pubType.Text == "Retraction of Publication" || pubType.Attr_UI == "D016440" {
+
+			if pubType.Attr_UI == RetractedMesh1 || pubType.Attr_UI == RetractedMesh2 {
 				dbArticle.Retracted = true
 			}
 			dbPubType := new(pubmedSqlStructs.PublicationType)
@@ -316,17 +330,17 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 
 	// Author list
 	if pArticle.AuthorList != nil {
-		dbArticle.Authors = make([]pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
+		dbArticle.Authors = make([]*pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
 		for i, _ := range pArticle.AuthorList.Author {
 			author := pArticle.AuthorList.Author[i]
 			dbAuthor := new(pubmedSqlStructs.Author)
 			if author.CollectiveName != nil {
 				dbAuthor.CollectiveName = author.CollectiveName.Text
-				continue
 			}
 
 			if author.Identifier != nil {
-				//dbAuthor.Id = author.Identifier.Text
+				dbAuthor.Identifier = author.Identifier.Text
+				dbAuthor.IdentifierSource = author.Identifier.Attr_Source
 			}
 			if author.LastName != nil {
 				dbAuthor.LastName = author.LastName.Text
@@ -337,7 +351,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 			if author.Affiliation != nil {
 				dbAuthor.Affiliation = author.Affiliation.Text
 			}
-			dbArticle.Authors[i] = *dbAuthor
+			dbArticle.Authors[i] = dbAuthor
 		}
 	}
 
@@ -382,4 +396,17 @@ func makeDataBanks(src *pubmedstruct.Article, dest *pubmedSqlStructs.Article) {
 		}
 
 	}
+}
+
+func makeOtherIds(other []*pubmedstruct.OtherID) []*pubmedSqlStructs.Other {
+	ids := make([]*pubmedSqlStructs.Other, len(other))
+	for i, _ := range other {
+		tmp := new(pubmedSqlStructs.Other)
+		log.Println("#################", other[i].Attr_Source, other[i].Text)
+		tmp.Source = other[i].Attr_Source
+		tmp.OtherID = other[i].Text
+		ids[i] = tmp
+	}
+	return ids
+
 }

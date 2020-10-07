@@ -6,7 +6,10 @@ import (
 
 	"github.com/gnewton/pubmedSqlStructs"
 	"github.com/gnewton/pubmedstruct"
-	"github.com/jinzhu/gorm"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	//"github.com/jinzhu/gorm"
 )
 
 func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.MeshDescriptor {
@@ -56,7 +59,8 @@ var meshMap = make(map[string]*MeshTree)
 
 func loadMesh(f string) {
 	log.Println("Opening:", f)
-	db, err := gorm.Open("sqlite3", f)
+	//db, err := gorm.Open("sqlite3", f)
+	db, err := gorm.Open(sqlite.Open(f), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}

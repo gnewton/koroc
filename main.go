@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/gnewton/pubmedSqlStructs"
-	"github.com/jinzhu/gorm"
 	"github.com/pkg/profile"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 var TransactionSize = 100000
@@ -37,10 +38,12 @@ const PUBMED_ARTICLE = "PubmedArticle"
 var out int = -1
 var JournalIdCounter int64 = 0
 var counters map[string]*int
-var articleIdsInDBCache map[uint]uint8 = make(map[uint]uint8, 100000)
+var articleIdsInDBCache map[uint32]uint8 = make(map[uint32]uint8, 100000)
 var closeOpenCount int64 = 0
 
 var empty struct{}
+
+type foo struct{}
 
 type ArticlesEnvelope struct {
 	articles []*pubmedSqlStructs.Article
@@ -88,16 +91,9 @@ func main() {
 		Error.Fatal(err)
 		return
 	}
-	defer func() {
-		log.Println("Closing database")
-		err = db.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
-	db.LogMode(true)
+
 	dbInit(db)
-	db.Close()
+
 	numExtractors := 12
 	//articleChannel := make(chan []*pubmedSqlStructs.Article, numExtractors*3)
 	articleChannel := make(chan ArticlesEnvelope, numExtractors*3)
@@ -184,7 +180,7 @@ type DBConnector struct {
 
 func (dbc *DBConnector) Open() (*gorm.DB, error) {
 	var err error
-	dbc.gdb, err = gorm.Open("sqlite3", dbc.dbFilename)
+	dbc.gdb, err = gorm.Open(sqlite.Open(dbc.dbFilename), &gorm.Config{})
 	return dbc.gdb, err
 }
 
@@ -192,7 +188,7 @@ func (dbc *DBConnector) DB() *gorm.DB {
 	return dbc.gdb
 }
 
-func makeArticleIdsInDBCache(db *sql.DB) (map[int32]struct{}, error) {
+func makeArticleIdsInDBCache(db *sql.DB) (map[uint32]struct{}, error) {
 	tx, err := db.Begin()
 	defer tx.Commit()
 	if err != nil {
@@ -205,11 +201,11 @@ func makeArticleIdsInDBCache(db *sql.DB) (map[int32]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	articleIdsInDB := make(map[int32]struct{}, 10000)
+	articleIdsInDB := make(map[uint32]struct{}, 10000)
 	count := 0
 	for rows.Next() {
 		count += 1
-		var id int32
+		var id uint32
 		err = rows.Scan(&id)
 		if err != nil {
 			return nil, err

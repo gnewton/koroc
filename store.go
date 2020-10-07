@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/gnewton/pubmedSqlStructs"
-	"github.com/jinzhu/gorm"
+	//"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func updateArticle(article *pubmedSqlStructs.Article) (sql.Result, error) {
@@ -30,8 +31,10 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 	if err != nil {
 		log.Fatal(err)
 	}
-	db.LogMode(true)
+	//db.LogMode(true)
+
 	tx := db.Begin()
+	tx = db.Debug()
 	t0 := time.Now()
 	var totalCount int64 = 0
 	counter := 0
@@ -67,7 +70,7 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 				tx.Commit()
 				if tx.Error != nil {
 					log.Println(tx.Error)
-					handleDbErrors(tx.GetErrors())
+					log.Fatal("m")
 				}
 				log.Println("transaction")
 				log.Println(tx)
@@ -118,14 +121,14 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 			} else {
 				log.Println(".........")
 				if len(article.Keywords) > 0 {
-					for _, kw := range article.Keywords {
-						var zkw pubmedSqlStructs.Keyword
-						result := tx.Where(&pubmedSqlStructs.Keyword{Name: kw.Name}).Find(&zkw)
-						log.Println(".........", zkw, result.RowsAffected, kw.Name)
-						if result.RowsAffected != 0 {
-							db.Preload("Keywords").Where(article).Find(&article).Association("Keywords").Append(&zkw)
-						}
-					}
+					//for _, kw := range article.Keywords {
+					//var zkw pubmedSqlStructs.Keyword
+					//result := tx.Where(&pubmedSqlStructs.Keyword{Name: kw.Name}).Find(&zkw)
+					//log.Println(".........", zkw, result.RowsAffected, kw.Name)
+					// if result.RowsAffected != 0 {
+					// 	db.Preload("Keywords").Where(article).Find(&article).Association("Keywords").Append(&zkw)
+					// }
+					//}
 				}
 				if err := tx.Create(article).Error; err != nil {
 					//if err := tx.Save(article).Error; err != nil {
@@ -155,24 +158,22 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 		log.Println("-- END chunk ", chunkCount)
 	}
 	if !doNotWriteToDbFlag {
-		log.Println("Final commit")
-		db := tx.Commit()
-		if db.Error != nil {
-			log.Fatal(db.Error)
-		}
-		if tx.Error != nil {
-			log.Fatal(tx.Error)
-		}
+		// log.Println("Final commit")
+		// db := tx.Commit()
+		// if db.Error != nil {
+		// 	log.Fatal(db.Error)
+		// }
+		// if tx.Error != nil {
+		// 	log.Fatal(tx.Error)
+		// }
 
 		db, err = dbc.Open()
 		if err != nil {
 			log.Fatal(err)
 		}
 		log.Println("Making indexes")
-		makeIndexes(db)
+		//makeIndexes(db)
 	}
-	log.Println("-- Close DB")
-	db.Close()
 
 	log.Println("++ END articleAdder")
 }
@@ -247,11 +248,4 @@ func seasonYear(md string) uint16 {
 	}
 
 	return uint16(tmp)
-}
-
-func handleDbErrors(errors []error) {
-	for i, e := range errors {
-		log.Println(i, e)
-	}
-	log.Fatal("Errors")
 }

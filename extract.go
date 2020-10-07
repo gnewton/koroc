@@ -155,7 +155,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		log.Println(err)
 	}
 
-	dbArticle.ID = uint(tmp)
+	dbArticle.ID = uint32(tmp)
 
 	// Title
 	dbArticle.Title = pArticle.ArticleTitle.Text
@@ -308,8 +308,9 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		log.Println(dbArticle.ID, pArticle)
 		log.Fatal("Article journal is nil")
 	} else {
+
 		newJournal := makeJournal(pArticle.Journal)
-		dbArticle.Journal = *newJournal
+		dbArticle.Journal = newJournal
 	}
 
 	// Publication Type

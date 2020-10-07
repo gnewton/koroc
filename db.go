@@ -2,30 +2,36 @@ package main
 
 import (
 	"database/sql"
-	"github.com/jinzhu/gorm"
-	_ "github.com/mattn/go-sqlite3"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	//"github.com/jinzhu/gorm"
+	//_ "github.com/mattn/go-sqlite3"
 	//_ "github.com/mxk/go-sqlite"
 	//_ "github.com/go-sql-driver/mysql"
 	"log"
 )
 
 func dbOpen(filename string) (*gorm.DB, error) {
-	db, err := gorm.Open("sqlite3", filename)
+	db, err := gorm.Open(sqlite.Open(filename), &gorm.Config{})
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 	log.Println("Opening db file: ", filename)
-	if sqliteLogFlag {
-		db.LogMode(true)
+
+	sdb, err := db.DB()
+	if err != nil {
+		log.Fatal(err)
 	}
+	err = sdb.Ping()
+	if err != nil {
+		log.Fatal(err)
+	}
+	sdb.SetMaxIdleConns(10)
+	sdb.SetMaxOpenConns(100)
 
-	db.DB()
-	db.DB().Ping()
-	db.DB().SetMaxIdleConns(10)
-	db.DB().SetMaxOpenConns(100)
-
-	sqlite3Config(db.DB())
+	sqlite3Config(sdb)
 	return db, nil
 }
 

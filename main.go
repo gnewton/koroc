@@ -31,6 +31,7 @@ var LoadNRecordsPerFile int64 = math.MaxInt64
 var recordPerFileCounter int64 = 0
 var doNotWriteToDbFlag = false
 var loggingFlag = false
+var sanitizeStringsFlag = false
 
 const CommentsCorrections_RefType = "Cites"
 const PUBMED_ARTICLE = "PubmedArticle"
@@ -68,6 +69,7 @@ func main() {
 	flag.Int64Var(&CloseOpenSize, "z", CloseOpenSize, "Num of records before sqlite connection is closed then reopened")
 	flag.Int64Var(&LoadNRecordsPerFile, "N", LoadNRecordsPerFile, "Load only N records from each file")
 	flag.BoolVar(&sqliteLogFlag, "V", sqliteLogFlag, "Turn on sqlite logging")
+	flag.BoolVar(&sanitizeStringsFlag, "s", sanitizeStringsFlag, "Removes xml tags from strings")
 
 	flag.BoolVar(&doNotWriteToDbFlag, "X", doNotWriteToDbFlag, "Do not write to db. Rolls back transaction. For debugging")
 

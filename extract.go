@@ -169,6 +169,9 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		for i, _ := range pArticle.Abstract.AbstractText {
 			dbArticle.FullAbstract = dbArticle.FullAbstract + " " + pArticle.Abstract.AbstractText[i].Text
 		}
+		if sanitizeStringsFlag {
+			dbArticle.FullAbstract = strip(dbArticle.FullAbstract)
+		}
 	}
 
 	if onlyTitleAbstract {

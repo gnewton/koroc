@@ -13,7 +13,7 @@ type InsertValuesSql func(interface{}) (string, string, string)
 const MajorTopicField = "major_topic"
 
 func kwjtCreateSql() string {
-	return MajorTopicField + " boolean,"
+	return MajorTopicField + " boolean"
 }
 
 func kwjtInsert(i interface{}) (string, string, string) {
@@ -55,9 +55,10 @@ type JoinTable struct {
 func (jt *JoinTable) CreateSql() string {
 	fc := ""
 	if jt.fcreate != nil {
-		fc = jt.fcreate()
+		fc = "," + jt.fcreate()
 	}
-	return "CREATE TABLE " + jt.joinTableName + " (" + jt.leftJoinField + " integer, " + jt.rightJoinField + " integer, " + fc + " PRIMARY KEY (" + jt.leftJoinField + "," + jt.rightJoinField + "))"
+	//return "CREATE TABLE " + jt.joinTableName + " (" + jt.leftJoinField + " integer, " + jt.rightJoinField + " integer, " + fc + " PRIMARY KEY (" + jt.leftJoinField + "," + jt.rightJoinField + "))"
+	return "CREATE TABLE " + jt.joinTableName + " (" + jt.leftJoinField + " integer(4), " + jt.rightJoinField + " integer(4)" + fc + ")"
 }
 
 // Returns the id of the Joined item

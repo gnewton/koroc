@@ -52,6 +52,10 @@ type ArticlesEnvelope struct {
 
 func init() {
 
+}
+
+func main() {
+
 	//defer profile.Start(profile.CPUProfile).Stop()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.BoolVar(&sqliteLogFlag, "L", sqliteLogFlag, "Turn on sqlite logging")
@@ -75,9 +79,6 @@ func init() {
 	}
 
 	logInit(loggingFlag, ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-}
-
-func main() {
 	defer profile.Start(profile.MemProfile).Stop()
 	if meshFileName != "" {
 		loadMesh(meshFileName)

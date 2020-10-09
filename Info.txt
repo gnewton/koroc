@@ -1,4 +1,8 @@
+Gorm
+- https://stackoverflow.com/questions/46900296/go-gorm-many2many-issue
 
+ftp://ftp.ncbi.nlm.nih.gov/pubmed/baseline/
+ftp://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles
 
 
 time ./GoPubMed2SQLite3 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_*.bz2
@@ -15,14 +19,40 @@ Entrez fetch XML:
 MAX PMID: http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&reldate=60&datetype=pdat&retmax=1
 
 Python sqlite loader
-https://pypi.python.org/pypi/medic/
-http://fnl.es/medline-kung-fu.html
+1 medic
+  https://pypi.python.org/pypi/medic/
+  http://fnl.es/medline-kung-fu.html
+2 https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-5-146  "Tools for loading MEDLINE into a local relational database"
+  https://biotext.berkeley.edu/software.html
+  https://biotext.berkeley.edu/code/medline-schema/MedlineParser.tar.gz
+3 https://github.com/ncbo/pubmed_xml2rdbms
+4 http://blog.appliedinformaticsinc.com/quick-guide-to-extract-transform-load-process-pubmed/
+5 https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0163794
+  Döring K, Grüning BA, Telukunta KK, Thomas P, Günther S (2016)
+  PubMedPortable: A Framework for Supporting the Development of Text
+  Mining Applications. PLoS ONE 11(10):
+  e0163794. https://doi.org/10.1371/journal.pone.0163794
+  "For the complete XML data set available in 2015 with a size of 114
+  GB, it took 10.5 days to build the PostgreSQL relational database
+  and another 27 hours to generate the full text index using a 2.8 GHz
+  quad-core processor. The time of the indexing process and the size
+  of the index depends on the number of extracted fields. A
+  modification of the PubMedPortable scripts, including only abstract
+  titles and texts, but not MeSH terms, keywords, and substances, led
+  to a runtime of 10 hours. The size of the full text index also
+  decreased from 154 GB to 124 GB. It is difficult to compare the
+  runtime to the results from Oliver et al. [20] due to different
+  hardware and software system requirements, but increasing
+  computational resources will speed up this process in general. Using
+  48 CPU cores with 2.1 GHz reduced the result calculation time of
+  10.5 days to 20 hours."
+6 https://github.com/MrMimic/MEDOC/blob/master/database_creation.sql
 
 
 SQLITE3 optimization
 - https://stackoverflow.com/questions/1711631/improve-insert-per-second-performance-of-sqlite
 - http://codificar.com.br/blog/sqlite-optimization-faq/
-Momory
+Memory
 - https://stackoverflow.com/questions/15255409/how-to-reduce-sqlite-memory-consumption
 https://katastrophos.net/andre/blog/2007/01/04/sqlite-performance-tuning-and-optimization-on-embedded-systems/
 
@@ -30,4 +60,73 @@ https://katastrophos.net/andre/blog/2007/01/04/sqlite-performance-tuning-and-opt
 /usr/bin/time -f "%E maxRes=%M %O %W %P %U"   ./GoPubMed2SQLite3 -f pubmedtest.db  /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3450069_3500069.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3850077_3900077.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_3000060_3050060.bz2  /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_4550091_4600091.bz2 /home/gnewton/newtong/tmp/home/newtong/pubmed/pubmed_xml_6750135_6800135.bz2 
 
 
-https://github.com/MrMimic/MEDOC/blob/master/database_creation.sql
+
+Go XML issues (namespaces):
+ - https://play.golang.org/p/BFoYzxGvl0n
+
+Remove HTML/XML tags: https://stackoverflow.com/questions/55036156/how-to-replace-all-html-tag-with-empty-string-in-golang
+
+////////////////////////////////
+////// Abstract inner xml leave
+////////////////////////////////
+package main
+
+import (
+	"encoding/xml"
+	"fmt"
+)
+
+type Math struct {
+	XMLName xml.Name `xml:"http://www.w3.org/1998/Math/MathML math"`
+	MI      []string `xml:"http://www.w3.org/1998/Math/MathML msubsup>mi"`
+	MN      []string `xml:"http://www.w3.org/1998/Math/MathML msubsup>mn"`
+	MO      []string `xml:"http://www.w3.org/1998/Math/MathML msubsup>mo"`
+	//Msubsup []string `xml:"http://www.w3.org/1998/Math/MathML msubsup"`
+}
+
+type Msubsup struct {
+	XMLName xml.Name `xml:"http://www.w3.org/1998/Math/MathML msubsup"`
+	Mi      Mi       `xml:"http://www.w3.org/1998/Math/MathML mi"`
+}
+
+type Mi struct {
+	XMLName     xml.Name `xml:"http://www.w3.org/1998/Math/MathML mi"`
+	MathVariant string   `xml:"mathvariant,attr"`
+	Text        string
+}
+
+type Keyword struct {
+	//XMLName xml.Name `xml:"Keyword"`
+	//Math    []Math   `xml:"http://www.w3.org/1998/Math/MathML math"`
+	//Text    string   `xml:",chardata"`
+	MajorTopicYN bool `xml:",attr"`
+	Text    string   `xml:",innerxml"`
+}
+
+var data1 = []byte(`<?xml version="1.0" encoding="UTF-8"?>
+
+        <Keyword MajorTopicYN="N">
+                    <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML">
+                        <mml:msubsup>
+                            <mml:mi mathvariant="normal">R</mml:mi>
+                            <mml:mn>2</mml:mn>
+                            <mml:mo>∗</mml:mo>
+                        </mml:msubsup>
+                    </mml:math>
+ relaxometry</Keyword>
+
+    `)
+
+var data2 = []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<Keyword MajorTopicYN="N">
+Regulation of cytoplasmic pH (pHi) of esophageal cells assumes importance as these cells can be exposed to mucosally absorbed acid during gastroesophageal reflux episodes. In this study, we examined whether esophageal cells possess pHi transport systems. Esophageal cells were harvested utilizing a gentle trypsin technique that yielded <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mn>2</mml:mn><mml:mo>-</mml:mo><mml:mn>5</mml:mn><mml:mo>×</mml:mo><mml:msup><mml:mn>10</mml:mn><mml:mn>6</mml:mn></mml:msup></mml:math> cells per esophagus. Cells were attached to a glass cover slip that had been pretreated with rat-tail collagen, and pHi was measured continuously in a spectrofluorometer utilizing 2',7'-bis(2-carboxyethyl)-5(-6)- carboxyfluoroscein acetoxymethyl ester as a pH-sensitive fluorescent probe. <DispFormula><mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mtext>H</mml:mtext><mml:mo>+</mml:mo></mml:msup></mml:math></DispFormula> The basal pHi of cells exposed to a <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mtext>H</mml:mtext><mml:mo>+</mml:mo></mml:msup></mml:math>-containing solution averaged 7.52 ± 0.20 (n = 6). The pHi declined slightly but not significantly to 7.46 ± 0.12 with the addition of 5% <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mtext>C</mml:mtext><mml:msub><mml:mtext>O</mml:mtext><mml:mn>2</mml:mn></mml:msub></mml:math> and 28 mM <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mtext>Na</mml:mtext><mml:mtext>H</mml:mtext><mml:mtext>C</mml:mtext><mml:msub><mml:mtext>O</mml:mtext><mml:mn>3</mml:mn></mml:msub></mml:math> When H2 4,4'-diisothiocyanatostilbene- 2,2'-disulfonic acid (DIDS; 0.5 mM) was added, pHi was unchanged. However, addition of <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mn>10</mml:mn><mml:mn>-6</mml:mn></mml:msup></mml:math> M amiloride caused pHi to decrease to 7.29 ± 0.18 (P less than 0.01). When cells were acidified (pHi 6.3-7.0) using a<DispFormula><mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mrow><mml:msup><mml:mi>a</mml:mi><mml:mn>2</mml:mn></mml:msup><mml:mo>+</mml:mo><mml:msup><mml:mi>b</mml:mi><mml:mn>2</mml:mn></mml:msup><mml:mo>=</mml:mo><mml:msup><mml:mi>c</mml:mi><mml:mn>2</mml:mn></mml:msup></mml:mrow></mml:math></DispFormula>(20 mM) pulse technique, pHi was rapidly restored toward neutrality in the presence of a <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mtext>H</mml:mtext><mml:mtext>C</mml:mtext><mml:msubsup><mml:mtext>O</mml:mtext><mml:mn>3</mml:mn><mml:mo>-</mml:mo></mml:msubsup></mml:math>-free external <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mtext>Na</mml:mtext><mml:mo>+</mml:mo></mml:msup></mml:math> concentration ([<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mtext>Na</mml:mtext><mml:mo>+</mml:mo></mml:msup></mml:math>]o)-containing solution (pH units/min = 0.26 ± 0.12; n = 8). Alkalinization was completely blocked with <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mn>10</mml:mn><mml:mn>-6</mml:mn></mml:msup></mml:math> M amiloride. In the presence of <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mn>10</mml:mn><mml:mn>-6</mml:mn></mml:msup></mml:math> M amiloride, 28 mM <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mtext>Na</mml:mtext><mml:mtext>H</mml:mtext><mml:mtext>C</mml:mtext><mml:msub><mml:mtext>O</mml:mtext><mml:mn>3</mml:mn></mml:msub></mml:math>, and 5% <mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mtext>C</mml:mtext><mml:msub><mml:mtext>O</mml:mtext><mml:mn>2</mml:mn></mml:msub></mml:math>, acidified cells also alkalinized, although at a slower rate (0.11 ± 0.04 pH units/min; n = 16).(ABSTRACT TRUNCATED AT 250 WORDS) 
+</Keyword>
+ `)
+
+func main() {
+	var dm Keyword
+	xml.Unmarshal(data1, &dm)
+	fmt.Printf("%+v\n", dm)
+	fmt.Println(dm)
+}
+//////////////

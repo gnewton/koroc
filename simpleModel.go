@@ -22,7 +22,7 @@ func handleErrors(errs []error) {
 func dbInit(db *gorm.DB) {
 	log.Printf("%v\n", db)
 
-	db = db.Debug()
+	//db = db.Debug()
 	err := db.AutoMigrate(&pubmedSqlStructs.Article{})
 	if err != nil {
 		log.Fatal(err)

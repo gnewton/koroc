@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"io"
 	"log"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -42,13 +43,11 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 		}
 
 		defer func() {
-			log.Println(id, "Closing reader")
+			log.Println(id, "Closing reader", filename)
 			err := reader.Close()
 			if err != nil {
 				log.Fatal(err)
 			}
-		}()
-		defer func() {
 			stat, err := file.Stat()
 			if err != nil {
 				log.Fatal(err)
@@ -59,6 +58,8 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 				log.Fatal(err)
 			}
 		}()
+
+		sourceFilename := filepath.Base(filename)
 
 		decoder := xml.NewDecoder(reader)
 		counters = make(map[string]*int)
@@ -90,11 +91,11 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 						log.Printf("%d count=%d\n", id, count)
 					}
 
-					count = count + 1
 					recordPerFileCounter = recordPerFileCounter + 1
 					var pubmedArticle pubmedstruct.PubmedArticle
 					decoder.DecodeElement(&pubmedArticle, &se)
-					article := pubmedArticleToDbArticle(&pubmedArticle, false)
+					article := pubmedArticleToDbArticle(&pubmedArticle, false, sourceFilename)
+
 					if article == nil {
 						log.Println(id, "-----------------nil")
 						continue
@@ -109,8 +110,9 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 						tc0 := time.Now()
 						env := new(ArticlesEnvelope)
 						env.articles = articleArray
-						env.n = len(articleArray)
-						//articleChannel <- articleArray
+						//env.n = len(articleArray)
+						env.n = count
+						log.Println("count=", count)
 						articleChannel <- *env
 						tc1 := time.Now()
 						log.Printf("%d Chunk Time to accept: %v \n", id, tc1.Sub(tc0))
@@ -120,7 +122,7 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 						count = 0
 						t0 = time.Now()
 					}
-
+					count = count + 1
 				}
 			}
 		}
@@ -131,15 +133,16 @@ func readFromFileAndExtractXML(id int, readFileChannel chan string, dbc *DBConne
 		//
 		env := new(ArticlesEnvelope)
 		env.articles = articleArray
-		env.n = len(articleArray)
-		//articleChannel <- articleArray
+		env.n = count
+		log.Println("count=", count)
 		articleChannel <- *env
 	}
 
 	log.Println(id, "Extract END")
 }
 
-func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract bool) *pubmedSqlStructs.Article {
+func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract bool, sourceXmlFilename string) *pubmedSqlStructs.Article {
+
 	medlineCitation := p.MedlineCitation
 	pArticle := medlineCitation.Article
 	if pArticle == nil {
@@ -148,6 +151,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 	}
 	var err error
 	dbArticle := new(pubmedSqlStructs.Article)
+	dbArticle.SourceXMLFilename = sourceXmlFilename
 	//dbArticle.ID, err = strconv.ParseInt(p.MedlineCitation.PMID.Text, 10, 32)
 	//tmp, err := strconv.Atoi(p.MedlineCitation.PMID.Text)
 	tmp, err := strconv.ParseUint(p.MedlineCitation.PMID.Text, 10, 32)
@@ -163,7 +167,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 	// Abstract
 	if pArticle.Abstract != nil && pArticle.Abstract.AbstractText != nil {
 		for i, _ := range pArticle.Abstract.AbstractText {
-			dbArticle.Abstract = dbArticle.Abstract + " " + pArticle.Abstract.AbstractText[i].Text
+			dbArticle.FullAbstract = dbArticle.FullAbstract + " " + pArticle.Abstract.AbstractText[i].Text
 		}
 	}
 
@@ -207,7 +211,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 	makeDataBanks(pArticle, dbArticle)
 
 	if p.PubmedData.ArticleIdList != nil {
-		dbArticle.ArticleIDs = makeArticleIdList(p.PubmedData.ArticleIdList)
+		////dbArticle.ArticleIDs = makeArticleIdList(p.PubmedData.ArticleIdList)
 	}
 
 	// Date
@@ -220,24 +224,24 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 					if err != nil {
 						log.Println(err)
 					}
-					dbArticle.Year = uint16(tmpi)
+					dbArticle.PubYear = uint16(tmpi)
 
 				} else {
 					if pArticle.Journal.JournalIssue.PubDate.MedlineDate == nil || pArticle.Journal.JournalIssue.PubDate.MedlineDate.Text == "" {
 						log.Println("MedlineDate is nil? ", pArticle.Journal.JournalIssue.PubDate.MedlineDate)
 					} else {
-						dbArticle.Year = medlineDate2Year(pArticle.Journal.JournalIssue.PubDate.MedlineDate.Text)
+						dbArticle.PubYear = medlineDate2Year(pArticle.Journal.JournalIssue.PubDate.MedlineDate.Text)
 					}
 				}
 				if pArticle.Journal.JournalIssue.PubDate.Month != nil {
-					dbArticle.Month = pArticle.Journal.JournalIssue.PubDate.Month.Text
+					dbArticle.PubMonth = pArticle.Journal.JournalIssue.PubDate.Month.Text
 				}
 				if pArticle.Journal.JournalIssue.PubDate.Day != nil {
 					tmpi, err = strconv.ParseUint(pArticle.Journal.JournalIssue.PubDate.Day.Text, 10, 8)
 					if err != nil {
 						log.Println(err)
 					}
-					dbArticle.Day = uint8(tmpi)
+					dbArticle.PubDay = uint8(tmpi)
 				}
 			} else {
 				log.Println("Journal.JournalIssue.PubDate=nil pmid=", dbArticle.ID)
@@ -247,7 +251,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 	}
 
 	if medlineCitation.OtherID != nil {
-		dbArticle.OtherIds = makeOtherIds(medlineCitation.OtherID)
+		////dbArticle.OtherIds = makeOtherIds(medlineCitation.OtherID)
 	}
 
 	if medlineCitation.KeywordList != nil && medlineCitation.KeywordList.Keyword != nil && len(medlineCitation.KeywordList.Keyword) > 0 {
@@ -269,7 +273,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 			}
 		}
 
-		dbArticle.Citations = make([]*pubmedSqlStructs.Citation, actualCitationCount)
+		////dbArticle.Citations = make([]*pubmedSqlStructs.Citation, actualCitationCount)
 		counter := 0
 
 		for i, _ := range medlineCitation.CommentsCorrectionsList.CommentsCorrections {
@@ -283,7 +287,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 				citation.PMID = uint32(tmp)
 				//citation.RefSource = commentsCorrection.RefSource.Text
 				//citation.ID = commentsCorrection.RefSource.Text
-				dbArticle.Citations[counter] = citation
+				////dbArticle.Citations[counter] = citation
 				//log.Println("---", dbArticle.Citations[counter].ID)
 				counter = counter + 1
 			}
@@ -293,14 +297,14 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 
 	// Chemicals
 	if medlineCitation.ChemicalList != nil {
-		dbArticle.Chemicals = makeChemicals(medlineCitation.ChemicalList.Chemical)
+		////dbArticle.Chemicals = makeChemicals(medlineCitation.ChemicalList.Chemical)
 	}
 
 	//mesh headings
 	//log.Println("mesh")
 	//log.Println(medlineCitation.MeshHeadingList)
 	if medlineCitation.MeshHeadingList != nil {
-		dbArticle.MeshDescriptors = makeMeshDescriptors(medlineCitation.MeshHeadingList.MeshHeading)
+		////dbArticle.MeshDescriptors = makeMeshDescriptors(medlineCitation.MeshHeadingList.MeshHeading)
 	}
 
 	// Journalo
@@ -309,13 +313,13 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 		log.Fatal("Article journal is nil")
 	} else {
 
-		newJournal := makeJournal(pArticle.Journal)
-		dbArticle.Journal = newJournal
+		//newJournal := makeJournal(pArticle.Journal)
+		//dbArticle.Journal = newJournal
 	}
 
 	// Publication Type
 	if pArticle.PublicationTypeList != nil && pArticle.PublicationTypeList.PublicationType != nil {
-		dbArticle.PublicationTypes = make([]*pubmedSqlStructs.PublicationType, len(pArticle.PublicationTypeList.PublicationType))
+		////dbArticle.PublicationTypes = make([]*pubmedSqlStructs.PublicationType, len(pArticle.PublicationTypeList.PublicationType))
 		for i, _ := range pArticle.PublicationTypeList.PublicationType {
 			pubType := pArticle.PublicationTypeList.PublicationType[i]
 
@@ -325,13 +329,13 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 			dbPubType := new(pubmedSqlStructs.PublicationType)
 			dbPubType.UI = pubType.Attr_UI
 			dbPubType.Name = pubType.Text
-			dbArticle.PublicationTypes[i] = dbPubType
+			////dbArticle.PublicationTypes[i] = dbPubType
 		}
 	}
 
 	// Author list
 	if pArticle.AuthorList != nil {
-		dbArticle.Authors = make([]*pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
+		////dbArticle.Authors = make([]*pubmedSqlStructs.Author, len(pArticle.AuthorList.Author))
 		for i, _ := range pArticle.AuthorList.Author {
 			author := pArticle.AuthorList.Author[i]
 			dbAuthor := new(pubmedSqlStructs.Author)
@@ -352,7 +356,7 @@ func pubmedArticleToDbArticle(p *pubmedstruct.PubmedArticle, onlyTitleAbstract b
 			if author.Affiliation != nil {
 				dbAuthor.Affiliation = author.Affiliation.Text
 			}
-			dbArticle.Authors[i] = dbAuthor
+			////dbArticle.Authors[i] = dbAuthor
 		}
 	}
 
@@ -380,23 +384,23 @@ func makeDataBanks(src *pubmedstruct.Article, dest *pubmedSqlStructs.Article) {
 		return
 	}
 
-	if dest.DataBanks == nil {
-		dest.DataBanks = make([]*pubmedSqlStructs.DataBank, len(src.DataBankList.DataBank))
-	}
-	for i, _ := range src.DataBankList.DataBank {
-		bank := src.DataBankList.DataBank[i]
-		dest.DataBanks[i] = new(pubmedSqlStructs.DataBank)
-		dest.DataBanks[i].Name = bank.DataBankName.Text
+	// if dest.DataBanks == nil {
+	// 	dest.DataBanks = make([]*pubmedSqlStructs.DataBank, len(src.DataBankList.DataBank))
+	// }
+	//for i, _ := range src.DataBankList.DataBank {
+	//bank := src.DataBankList.DataBank[i]
+	//dest.DataBanks[i] = new(pubmedSqlStructs.DataBank)
+	//dest.DataBanks[i].Name = bank.DataBankName.Text
 
-		if dest.DataBanks[i].AccessionNumbers == nil {
-			dest.DataBanks[i].AccessionNumbers = make([]*pubmedSqlStructs.AccessionNumber, len(bank.AccessionNumberList.AccessionNumber))
-		}
-		for j, _ := range bank.AccessionNumberList.AccessionNumber {
-			dest.DataBanks[i].AccessionNumbers[j] = new(pubmedSqlStructs.AccessionNumber)
-			dest.DataBanks[i].AccessionNumbers[j].Number = bank.AccessionNumberList.AccessionNumber[j].Text
-		}
+	// if dest.DataBanks[i].AccessionNumbers == nil {
+	// 	dest.DataBanks[i].AccessionNumbers = make([]*pubmedSqlStructs.AccessionNumber, len(bank.AccessionNumberList.AccessionNumber))
+	// }
+	// for j, _ := range bank.AccessionNumberList.AccessionNumber {
+	// 	dest.DataBanks[i].AccessionNumbers[j] = new(pubmedSqlStructs.AccessionNumber)
+	// 	dest.DataBanks[i].AccessionNumbers[j].Number = bank.AccessionNumberList.AccessionNumber[j].Text
+	// }
 
-	}
+	//}
 }
 
 func makeOtherIds(other []*pubmedstruct.OtherID) []*pubmedSqlStructs.Other {

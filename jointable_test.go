@@ -1,29 +1,27 @@
 package main
 
 import (
-	"github.com/gnewton/pubmedSqlStructs"
 	"testing"
 )
 
 func TestCreateSql(t *testing.T) {
-	jt, err := NewJoinTable("article_keyword", "article_id", "keyword_id", kwjtCreateSql, kwjtInsert)
+	_, err := NewJoinTable("article_keyword", "article_id", "keyword_id", kwjtCreateSql, kwjtInsert, kwtSavePreparedSql)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(jt.CreateSql())
 }
 
 func TestInsertSql(t *testing.T) {
-	jt, err := NewJoinTable("article_keyword", "article_id", "keyword_id", kwjtCreateSql, kwjtInsert)
+	jt, err := NewJoinTable("article_keyword", "article_id", "keyword_id", kwjtCreateSql, kwjtInsert, kwtSavePreparedSql)
 	if err != nil {
 		t.Fatal(err)
 	}
-	kw := pubmedSqlStructs.Keyword{
+	kw := Keyword{
 		MajorTopic: true,
 		Name:       "blood"}
 
-	rightId, newItem, sql, err := jt.AddJoinItem(42, &kw)
-	t.Log(newItem)
+	rightId, newItem, _, err := jt.AddJoinItem(42, &kw)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,43 +31,34 @@ func TestInsertSql(t *testing.T) {
 	if !newItem {
 		t.Fatal()
 	}
-	t.Log(sql)
 
-	kw = pubmedSqlStructs.Keyword{
+	kw = Keyword{
 		MajorTopic: false,
 		Name:       "liver"}
 
-	rightId, newItem, sql, err = jt.AddJoinItem(934, &kw)
-	t.Log(newItem)
+	rightId, newItem, _, err = jt.AddJoinItem(934, &kw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !newItem {
 		t.Fatal()
 	}
-	t.Log(sql)
 
-	kw = pubmedSqlStructs.Keyword{
+	kw = Keyword{
 		MajorTopic: true,
 		Name:       "heart"}
-	rightId, newItem, sql, err = jt.AddJoinItem(94, &kw)
-	t.Log(newItem)
+	rightId, newItem, _, err = jt.AddJoinItem(94, &kw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(sql)
 
-	rightId, newItem, sql, err = jt.AddJoinItem(42, &kw)
-	t.Log(newItem)
+	rightId, newItem, _, err = jt.AddJoinItem(42, &kw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(sql)
 
-	rightId, newItem, sql, err = jt.AddJoinItem(48, &kw)
-	t.Log(newItem)
+	rightId, newItem, _, err = jt.AddJoinItem(48, &kw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(sql)
 }

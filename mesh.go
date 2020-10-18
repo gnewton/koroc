@@ -4,7 +4,7 @@ import (
 	//	"fmt"
 	"log"
 
-	"github.com/gnewton/pubmedSqlStructs"
+	//"github.com/gnewton/
 	"github.com/gnewton/pubmedstruct"
 
 	"gorm.io/driver/sqlite"
@@ -12,12 +12,12 @@ import (
 	//"github.com/jinzhu/gorm"
 )
 
-func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.MeshDescriptor {
-	meshDescriptors := make([]*pubmedSqlStructs.MeshDescriptor, len(mhs))
+func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*MeshDescriptor {
+	meshDescriptors := make([]*MeshDescriptor, len(mhs))
 
 	for i, _ := range mhs {
 		meshHeading := mhs[i]
-		newMeshDescriptor := new(pubmedSqlStructs.MeshDescriptor)
+		newMeshDescriptor := new(MeshDescriptor)
 		newMeshDescriptor.MajorTopic = (meshHeading.DescriptorName.Attr_MajorTopicYN == "Y")
 		newMeshDescriptor.Type = meshHeading.DescriptorName.Attr_Type
 		newMeshDescriptor.Name = meshHeading.DescriptorName.Text
@@ -35,12 +35,12 @@ func makeMeshDescriptors(mhs []*pubmedstruct.MeshHeading) []*pubmedSqlStructs.Me
 	return meshDescriptors
 }
 
-func makeQualifiers(qns []*pubmedstruct.QualifierName) []*pubmedSqlStructs.MeshQualifier {
-	qualifiers := make([]*pubmedSqlStructs.MeshQualifier, len(qns))
+func makeQualifiers(qns []*pubmedstruct.QualifierName) []*MeshQualifier {
+	qualifiers := make([]*MeshQualifier, len(qns))
 
 	for i, _ := range qns {
 		mq := qns[i]
-		meshQualifier := new(pubmedSqlStructs.MeshQualifier)
+		meshQualifier := new(MeshQualifier)
 		meshQualifier.Name = mq.Text
 
 		meshQualifier.MajorTopic = (mq.Attr_MajorTopicYN == "Y")

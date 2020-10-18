@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/gnewton/pubmedSqlStructs"
+	//"github.com/gnewton/
 	"sync"
 )
 
 type Persister interface {
-	Persist(chan []*pubmedSqlStructs.Article, sync.WaitGroup) error
+	Persist(chan []*Article, sync.WaitGroup) error
 }

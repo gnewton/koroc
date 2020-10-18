@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gnewton/pubmedSqlStructs"
+	//"github.com/gnewton/
 	//_ "github.com/go-sql-driver/mysql"
 	//"github.com/jinzhu/gorm"
 	//_ "github.com/mattn/go-sqlite3"
@@ -19,75 +19,74 @@ func handleErrors(errs []error) {
 	}
 }
 
-func dbInit(db *gorm.DB) {
+func createTables(db *gorm.DB) {
 	log.Printf("%v\n", db)
 
 	//db = db.Debug()
-	err := db.AutoMigrate(&pubmedSqlStructs.Article{})
-	if err != nil {
+	if err := db.AutoMigrate(&Article{}); err != nil {
 		log.Fatal(err)
 	}
-	err = db.AutoMigrate(&pubmedSqlStructs.Author{})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = db.AutoMigrate(&pubmedSqlStructs.Chemical{})
+	err := db.AutoMigrate(&Author{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.Citation{})
+	err = db.AutoMigrate(&Chemical{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.Gene{})
+	err = db.AutoMigrate(&Citation{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.Journal{})
+	err = db.AutoMigrate(&Gene{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.Keyword{})
+	err = db.AutoMigrate(&Journal{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.MeshDescriptor{})
+	err = db.AutoMigrate(&Keyword{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.MeshQualifier{})
+	err = db.AutoMigrate(&MeshDescriptor{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.Other{})
+	err = db.AutoMigrate(&MeshQualifier{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.DataBank{})
+	err = db.AutoMigrate(&Other{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.AccessionNumber{})
+	err = db.AutoMigrate(&DataBank{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.ArticleID{})
+	err = db.AutoMigrate(&AccessionNumber{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.AutoMigrate(&pubmedSqlStructs.PublicationType{})
+	err = db.AutoMigrate(&ArticleID{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = db.AutoMigrate(&PublicationType{})
 	if err != nil {
 		log.Fatal(err)
 	}

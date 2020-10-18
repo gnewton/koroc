@@ -1,17 +1,17 @@
 package main
 
 import (
-	"github.com/gnewton/pubmedSqlStructs"
+	//"github.com/gnewton/
 	"github.com/gnewton/pubmedstruct"
 	"log"
 	"sync"
 )
 
-var journalMap map[string]*pubmedSqlStructs.Journal = make(map[string]*pubmedSqlStructs.Journal)
+var journalMap map[string]*Journal = make(map[string]*Journal)
 var journalMutex *sync.Mutex = new(sync.Mutex)
 
-func makeJournal(journal *pubmedstruct.Journal) *pubmedSqlStructs.Journal {
-	var newJournal *pubmedSqlStructs.Journal
+func makeJournal(journal *pubmedstruct.Journal) *Journal {
+	var newJournal *Journal
 	mapKey := ""
 
 	if journal.ISOAbbreviation == nil && journal.ISSN == nil {
@@ -28,7 +28,7 @@ func makeJournal(journal *pubmedstruct.Journal) *pubmedSqlStructs.Journal {
 	var ok bool
 	journalMutex.Lock()
 	if newJournal, ok = journalMap[mapKey]; !ok {
-		newJournal = new(pubmedSqlStructs.Journal)
+		newJournal = new(Journal)
 		if journal.ISOAbbreviation != nil {
 			newJournal.IsoAbbreviation = journal.ISOAbbreviation.Text
 		}
@@ -44,10 +44,10 @@ func makeJournal(journal *pubmedstruct.Journal) *pubmedSqlStructs.Journal {
 }
 
 // Map cache of chemicals
-var chemicalMap map[string]*pubmedSqlStructs.Chemical = make(map[string]*pubmedSqlStructs.Chemical)
+var chemicalMap map[string]*Chemical = make(map[string]*Chemical)
 
-func makeChemicals(chemicals []*pubmedstruct.Chemical) []*pubmedSqlStructs.Chemical {
-	newChemicals := make([]*pubmedSqlStructs.Chemical, len(chemicals))
+func makeChemicals(chemicals []*pubmedstruct.Chemical) []*Chemical {
+	newChemicals := make([]*Chemical, len(chemicals))
 	for i, _ := range chemicals {
 		chemical := chemicals[i]
 		newChemicals[i] = findChemical(chemical)
@@ -58,13 +58,13 @@ func makeChemicals(chemicals []*pubmedstruct.Chemical) []*pubmedSqlStructs.Chemi
 
 var chemMutex *sync.Mutex = new(sync.Mutex)
 
-func findChemical(chem *pubmedstruct.Chemical) (chemical *pubmedSqlStructs.Chemical) {
+func findChemical(chem *pubmedstruct.Chemical) (chemical *Chemical) {
 	mapKey := chem.RegistryNumber.Text + "_" + chem.RegistryNumber.Text
 
 	chemMutex.Lock()
 	var ok bool
 	if chemical, ok = chemicalMap[mapKey]; !ok {
-		chemical = new(pubmedSqlStructs.Chemical)
+		chemical = new(Chemical)
 		chemical.Name = chem.NameOfSubstance.Text
 		chemical.Registry = chem.RegistryNumber.Text
 		chemicalMap[mapKey] = chemical
@@ -74,30 +74,20 @@ func findChemical(chem *pubmedstruct.Chemical) (chemical *pubmedSqlStructs.Chemi
 	return chemical
 }
 
-func makeKeywords(owner string, keywords []*pubmedstruct.Keyword) []*pubmedSqlStructs.Keyword {
-	newKeywords := make([]*pubmedSqlStructs.Keyword, len(keywords))
-
-	for i, _ := range keywords {
-		keyword := keywords[i]
-		newKeywords[i] = findKeyword(owner, keyword)
-	}
-
-	return newKeywords
-}
-
 // Map cache of keywords
-var keywordMap map[string]*pubmedSqlStructs.Keyword = make(map[string]*pubmedSqlStructs.Keyword)
+var keywordMap map[string]*Keyword = make(map[string]*Keyword)
 
 var kwMutex *sync.Mutex = new(sync.Mutex)
 
-func findKeyword(owner string, k *pubmedstruct.Keyword) (keyword *pubmedSqlStructs.Keyword) {
+func findKeyword(owner string, k *pubmedstruct.Keyword) (keyword *Keyword) {
 
 	mapKey := owner + "_" + k.Attr_MajorTopicYN + "_" + k.Text
 	var ok bool
 	kwMutex.Lock()
 	if keyword, ok = keywordMap[mapKey]; !ok {
-		keyword = new(pubmedSqlStructs.Keyword)
+		keyword = new(Keyword)
 		keyword.Name = k.Text
+		keyword.Owner = owner
 
 		if k.Attr_MajorTopicYN == "Y" {
 			keyword.MajorTopic = true

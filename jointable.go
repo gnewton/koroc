@@ -1,25 +1,36 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
-	"github.com/gnewton/pubmedSqlStructs"
+	"fmt"
+	//"github.com/gnewton/
 	"log"
 	"strconv"
 )
 
 type JTFieldsCreateSql func() string
-type InsertValuesSql func(interface{}) (string, string, string)
+type InsertValuesSql func(interface{}) (names string, fields string, values string, err error)
+type SavePreparedSql func() (fields string, numFields string)
 
 const MajorTopicField = "major_topic"
 
+//SavePreparedSql
+func kwtSavePreparedSql() (fields string, numFields string) {
+	return ", " + MajorTopicField, ",?"
+}
+
+// JTFieldsCreateSql
 func kwjtCreateSql() string {
 	return MajorTopicField + " boolean"
 }
 
-func kwjtInsert(i interface{}) (string, string, string) {
-	keyword, ok := i.(*pubmedSqlStructs.Keyword)
+// InsertValuesSql
+func kwjtInsert(i interface{}) (string, string, string, error) {
+	keyword, ok := i.(*Keyword)
 	if !ok {
-		log.Fatal("Unable to type assert Keyword")
+		log.Println("Unable to type assert Keyword")
+		return "", "", "", errors.New("Unable to type assert Keyword")
 	}
 	fields := ", " + MajorTopicField
 	var values string
@@ -28,18 +39,19 @@ func kwjtInsert(i interface{}) (string, string, string) {
 	} else {
 		values = ", false"
 	}
-	return keyword.Name, fields, values
+	return keyword.Name, fields, values, nil
 
 }
 
-func NewJoinTable(joinTableName string, leftJoinField string, rightJoinField string, fcreate JTFieldsCreateSql, finsert InsertValuesSql) (*JoinTable, error) {
+func NewJoinTable(joinTableName string, leftJoinField string, rightJoinField string, fcreate JTFieldsCreateSql, finsert InsertValuesSql, fSave SavePreparedSql) (*JoinTable, error) {
 	jt := new(JoinTable)
 	jt.ids = make(map[string]uint32)
 	jt.leftJoinField = leftJoinField
 	jt.rightJoinField = rightJoinField
 	jt.joinTableName = joinTableName
-	jt.fcreate = fcreate
-	jt.finsert = finsert
+	jt.fCreate = fcreate
+	jt.fInsert = finsert
+	jt.fSave = fSave
 	return jt, nil
 }
 
@@ -48,17 +60,45 @@ type JoinTable struct {
 	counter                       uint32
 	leftJoinField, rightJoinField string
 	joinTableName                 string
-	fcreate                       JTFieldsCreateSql
-	finsert                       InsertValuesSql
+	fCreate                       JTFieldsCreateSql
+	fInsert                       InsertValuesSql
+	fSave                         SavePreparedSql
 }
 
-func (jt *JoinTable) CreateSql() string {
+func (jt *JoinTable) Delete(leftJoinField uint32, stmt *sql.Stmt) error {
+	if stmt == nil {
+		return errors.New("Statement is nil")
+	}
+	_, err := stmt.Exec(leftJoinField)
+	return err
+}
+
+func (jt *JoinTable) SavePreparedStatement(tx *sql.Tx) (*sql.Stmt, error) {
+	var fields, valuePlaceHolders string
+	if jt.fSave != nil {
+		fields, valuePlaceHolders = jt.fSave()
+	}
+
+	sql := "INSERT INTO " + jt.joinTableName + "(" + jt.leftJoinField + "," + jt.rightJoinField + fields + ") VALUES (?,?" + valuePlaceHolders + ")"
+	return tx.Prepare(sql)
+}
+
+func (jt *JoinTable) DeletePreparedStatement(tx *sql.Tx) (*sql.Stmt, error) {
+	if tx == nil {
+		log.Println(errors.New("Database is nil"))
+	}
+	sql := fmt.Sprintln("DELETE FROM", jt.joinTableName, "WHERE", jt.leftJoinField, "=?")
+	return tx.Prepare(sql)
+}
+
+func (jt *JoinTable) CreateSql() (string, string) {
 	fc := ""
-	if jt.fcreate != nil {
-		fc = "," + jt.fcreate()
+	if jt.fCreate != nil {
+		fc = "," + jt.fCreate()
 	}
 	//return "CREATE TABLE " + jt.joinTableName + " (" + jt.leftJoinField + " integer, " + jt.rightJoinField + " integer, " + fc + " PRIMARY KEY (" + jt.leftJoinField + "," + jt.rightJoinField + "))"
-	return "CREATE TABLE " + jt.joinTableName + " (" + jt.leftJoinField + " integer(4), " + jt.rightJoinField + " integer(4)" + fc + ")"
+	return "CREATE TABLE " + jt.joinTableName + " (" + jt.leftJoinField + " integer(4), " + jt.rightJoinField + " integer(4)" + fc + ")", "CREATE UNIQUE INDEX idx_" + jt.joinTableName + " ON " + jt.joinTableName + "(" + jt.leftJoinField + ", " + jt.rightJoinField + ")"
+
 }
 
 // Returns the id of the Joined item
@@ -70,8 +110,13 @@ func (jt *JoinTable) AddJoinItem(leftId uint32, i interface{}) (rightId uint32, 
 	} else {
 		// make key
 		key, fields, values := "", "", ""
-		if jt.finsert != nil {
-			key, fields, values = jt.finsert(i)
+		if jt.fInsert != nil {
+			key, fields, values, err = jt.fInsert(i)
+			if err != nil {
+				log.Printf("%T\n", i)
+				log.Printf("%v\n", i)
+				log.Fatal(err)
+			}
 		}
 
 		var ok bool
@@ -86,9 +131,10 @@ func (jt *JoinTable) AddJoinItem(leftId uint32, i interface{}) (rightId uint32, 
 			jt.ids[key] = rightId
 			jt.counter++
 		}
-		log.Println(jt.ids)
+
 		// insert sql
 		joinSql := "INSERT INTO " + jt.joinTableName + " (" + jt.leftJoinField + "," + jt.rightJoinField + fields + ") VALUES (" + strconv.FormatUint(uint64(leftId), 10) + "," + strconv.FormatUint(uint64(rightId), 10) + values + ")"
+		//log.Println("Inserting join: " + joinSql)
 		return rightId, newItem, joinSql, nil
 
 	}

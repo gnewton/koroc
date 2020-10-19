@@ -6,7 +6,7 @@ import (
 
 // Failing tests
 func TestRecord_AddN_IndexTooLargeLimit(t *testing.T) {
-	tab, _, _, _, err := articleTableFull(new(DialectSqlite3))
+	tab, _, _, _, err := personTableFull(new(DialectSqlite3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,7 +18,7 @@ func TestRecord_AddN_IndexTooLargeLimit(t *testing.T) {
 }
 
 func TestRecord_Add_FieldPositionInTableTooLarge(t *testing.T) {
-	_, f0, _, _ := articleTable(new(DialectSqlite3))
+	_, f0, _, _ := personTable(new(DialectSqlite3))
 	f0.positionInTable = 999
 	rec := new(Record)
 
@@ -28,7 +28,7 @@ func TestRecord_Add_FieldPositionInTableTooLarge(t *testing.T) {
 }
 
 func TestRecord_AddN_IndexTooSmallLimit(t *testing.T) {
-	tab, _, _, _, err := articleTableFull(new(DialectSqlite3))
+	tab, _, _, _, err := personTableFull(new(DialectSqlite3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestRecord_AddN_IndexTooSmallLimit(t *testing.T) {
 }
 
 func TestRecord_Add_FieldPositionInTableTooSmall(t *testing.T) {
-	tab, f0, _, _ := articleTable(new(DialectSqlite3))
+	tab, f0, _, _ := personTable(new(DialectSqlite3))
 	tab.AddField(f0)
 	f0.positionInTable = -1
 	rec := tab.Record()
@@ -59,7 +59,7 @@ func TestRecord_AddN_NilRecValues(t *testing.T) {
 }
 
 func TestRecord_Add_NilRecValues(t *testing.T) {
-	_, f0, _, _ := articleTable(new(DialectSqlite3))
+	_, f0, _, _ := personTable(new(DialectSqlite3))
 	rec := new(Record)
 	rec.values = nil
 
@@ -69,7 +69,7 @@ func TestRecord_Add_NilRecValues(t *testing.T) {
 }
 
 func TestRecord_Add_NonUint32Int(t *testing.T) {
-	tab, f0, _, _ := articleTable(new(DialectSqlite3))
+	tab, f0, _, _ := personTable(new(DialectSqlite3))
 
 	rec := tab.Record()
 	if err := rec.Add(f0, 45); err == nil {
@@ -78,7 +78,7 @@ func TestRecord_Add_NonUint32Int(t *testing.T) {
 }
 
 func TestRecord_AddN_NonUint32Int(t *testing.T) {
-	tab, _, _, _, err := articleTableFull(new(DialectSqlite3))
+	tab, _, _, _, err := personTableFull(new(DialectSqlite3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestRecord_AddN_NonUint32Int(t *testing.T) {
 }
 
 func TestRecord_Add_NonText(t *testing.T) {
-	tab, _, f1, _ := articleTable(new(DialectSqlite3))
+	tab, _, f1, _ := personTable(new(DialectSqlite3))
 
 	rec := tab.Record()
 	if err := rec.Add(f1, 45); err == nil {
@@ -99,7 +99,7 @@ func TestRecord_Add_NonText(t *testing.T) {
 }
 
 func TestRecord_AddN_NonText(t *testing.T) {
-	tab, _, _, _, err := articleTableFull(new(DialectSqlite3))
+	tab, _, _, _, err := personTableFull(new(DialectSqlite3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestRecord_AddN_NonText(t *testing.T) {
 }
 
 func TestRecord_AddN_NegIndex(t *testing.T) {
-	tab, _, _, _, err := articleTableFull(new(DialectSqlite3))
+	tab, _, _, _, err := personTableFull(new(DialectSqlite3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestRecord_AddN_NegIndex(t *testing.T) {
 }
 
 func TestRecord_Add_NilTable(t *testing.T) {
-	_, f0, _, _ := articleTable(new(DialectSqlite3))
+	_, f0, _, _ := personTable(new(DialectSqlite3))
 	rec := new(Record)
 
 	if err := rec.Add(f0, uint32(45)); err == nil {

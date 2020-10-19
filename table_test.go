@@ -9,53 +9,9 @@ import (
 
 //////////////////////////////////////////////////////////////////////
 // Failing tests
-func TestTableFoo(t *testing.T) {
-	tab, f0, f1, _ := articleTable(new(DialectSqlite3))
-
-	if err := tab.AddField(f0); err != nil {
-		t.Fatal(err)
-	}
-	if err := tab.AddField(f1); err != nil {
-		t.Fatal(err)
-	}
-	tab.pk = f0
-
-	rec := tab.Record()
-
-	var i uint32 = 42
-	if err := rec.Add(f0, i); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := rec.Add(f1, "fred"); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log(rec.values)
-	rec.Reset()
-	t.Log(rec.values)
-
-	if err := rec.AddN(0, uint32(997)); err != nil {
-		t.Fatal(err)
-	}
-	if err := rec.AddN(1, "bill"); err != nil {
-		t.Fatal(err)
-	}
-	t.Log(rec.values)
-
-	rec.Reset()
-	if err := rec.Add(f1, "foo"); err != nil {
-		t.Fatal(err)
-	}
-
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-}
 
 func TestTable_AddField_NullField(t *testing.T) {
-	tab, _, _, _ := articleTable(new(DialectSqlite3))
+	tab, _, _, _ := personTable(new(DialectSqlite3))
 
 	if err := tab.AddField(nil); err == nil {
 		t.Fatal("Should fail")
@@ -63,7 +19,7 @@ func TestTable_AddField_NullField(t *testing.T) {
 }
 
 func TestTable_AddField_EmptyFieldName(t *testing.T) {
-	tab, f0, _, _ := articleTable(new(DialectSqlite3))
+	tab, f0, _, _ := personTable(new(DialectSqlite3))
 	f0.name = ""
 	if err := tab.AddField(f0); err == nil {
 		t.Fatal("Should fail")
@@ -71,7 +27,7 @@ func TestTable_AddField_EmptyFieldName(t *testing.T) {
 }
 
 func TestTable_AddField_RepeatFieldName(t *testing.T) {
-	tab, f0, _, _ := articleTable(new(DialectSqlite3))
+	tab, f0, _, _ := personTable(new(DialectSqlite3))
 	t.Log(tab.fmap)
 	if err := tab.AddField(f0); err != nil {
 		t.Fatal("Should not fail")
@@ -83,86 +39,205 @@ func TestTable_AddField_RepeatFieldName(t *testing.T) {
 	}
 }
 
-func TestTable_InsertRecord(t *testing.T) {
-	db, tab, f0, f1, f2 := _CreateTable(t)
-
-	preparedSql, err := tab.InsertPreparedStatement()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(preparedSql)
-
-	tx, err := db.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stmt, err := tx.Prepare(preparedSql)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rec := tab.Record()
-	if err := rec.Add(f0, uint32(10)); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := rec.Add(f1, "foo"); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := rec.Add(f2, true); err != nil {
-		t.Fatal(err)
-	}
-
-	result, err := stmt.Exec(rec.values...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result == nil {
-		t.Fatal(err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if rowsAffected != 1 {
-		t.Fatal(errors.New("Should only effect one row"))
-	}
-}
-
+//////////////////////////////////////////////////////////////////////
+// Positive tests
 func TestTable_CreateTable(t *testing.T) {
-	_, _, _, _, _ = _CreateTable(t)
-}
-
-func _CreateTable(t *testing.T) (*sql.DB, *Table, *Field, *Field, *Field) {
-	tab, f0, f1, f2, err := articleTableFull(new(DialectSqlite3))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	createTableSql, err := tab.CreateSql()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	db, err := newDB()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Log(createTableSql)
-	_, err = db.Exec(createTableSql)
+	_, _, _, _, err = _CreateTable(t, db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return db, tab, f0, f1, f2
+}
+
+func TestTable_InsertRecord(t *testing.T) {
+	db, err := newDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var id uint32 = 10
+	_, _, err = _InsertRecord(t, db, id, "foo", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTable_DeleteRecord(t *testing.T) {
+	db, err := newDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var id uint32 = 10
+	db, tab, err := _InsertRecord(t, db, id, "foo", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = _DeleteRecord(t, id, db, tab)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 //////////////////////////////////////////////////////////////////////
 //helpers
+
+func _DeleteRecord(t *testing.T, v0 uint32, db *sql.DB, tab *Table) error {
+
+	preparedDeleteSql, err := tab.dialect.DeleteByPKPreparedStatementSql(tab.name, tab.pk.name)
+	if err != nil {
+		t.Log(err)
+		return err
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		t.Log(err)
+		return err
+	}
+	stmt, err := tx.Prepare(preparedDeleteSql)
+	t.Log(preparedDeleteSql)
+	if err != nil {
+		t.Log(err)
+		return err
+	}
+	result, err := stmt.Exec(v0)
+	if err != nil {
+		t.Log(err)
+		return err
+	}
+	if result == nil {
+		t.Log(err)
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		t.Log(err)
+		return err
+	}
+	if rowsAffected != 1 {
+		return errors.New("Should only effect one row")
+	}
+	return nil
+}
+
+func _InsertRecord(t *testing.T, db *sql.DB, v0 uint32, v1 string, v2 bool) (*sql.DB, *Table, error) {
+
+	tab, f0, f1, f2, err := _CreateTable(t, db)
+
+	if err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+	preparedInsertSql, err := tab.dialect.InsertPreparedStatementSql(tab.name, tab.fields)
+	t.Log(preparedInsertSql)
+	if err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+	stmt, err := tx.Prepare(preparedInsertSql)
+	if err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+
+	rec := tab.Record()
+	if err := rec.Add(f0, v0); err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+
+	if err := rec.Add(f1, v1); err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+
+	if err := rec.Add(f2, v2); err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+
+	result, err := stmt.Exec(rec.values...)
+	if err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+	if result == nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		t.Log(err)
+		return nil, nil, err
+	}
+	if rowsAffected != 1 {
+		t.Log(err)
+		return nil, nil, errors.New("Should only effect one row")
+	}
+	err = tx.Commit()
+	if err != nil {
+		return nil, nil, err
+	}
+	return db, tab, nil
+}
+
+func _CreateTable(t *testing.T, db *sql.DB) (*Table, *Field, *Field, *Field, error) {
+	tab, f0, f1, f2, err := personTableFull(new(DialectSqlite3)) // TODO: Dialect should be passed in....
+
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	createTableSql, err := tab.dialect.CreateTableSql(tab.name, tab.fields, tab.pk.name)
+	if err != nil {
+		return nil, nil, nil, nil, err
+
+	}
+	t.Log(createTableSql)
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, nil, nil, nil, err
+
+	}
+
+	result, err := tx.Exec(createTableSql)
+	if result == nil {
+		return nil, nil, nil, nil, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	if rowsAffected != 0 {
+		return nil, nil, nil, nil, errors.New("More than zero row affected")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	return tab, f0, f1, f2, nil
+}
+
 func newDB() (*sql.DB, error) {
 	return sql.Open("sqlite3", ":memory:")
 }
 
-func articleTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, error) {
-	tab, f0, f1, f2 := articleTable(dialect)
+func personTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, error) {
+	tab, f0, f1, f2 := personTable(dialect)
 	if err := tab.AddField(f0); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -177,9 +252,9 @@ func articleTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, error) {
 	return tab, f0, f1, f2, nil
 }
 
-func articleTable(dialect Dialect) (*Table, *Field, *Field, *Field) {
+func personTable(dialect Dialect) (*Table, *Field, *Field, *Field) {
 
-	tab := Table{name: "articles",
+	tab := Table{name: "person",
 		dialect: dialect,
 	}
 

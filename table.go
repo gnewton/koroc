@@ -44,17 +44,9 @@ func (t *Table) Record() *Record {
 	return &rec
 }
 
+/*
 func (t *Table) CreateSql() (string, error) {
 	return t.dialect.CreateTableSql(t.name, t.fields, t.pk)
-}
-
-func (t *Table) primaryKeyCreateSql() string {
-	if t.pk == nil {
-		return ""
-	} else {
-		return ", PRIMARY KEY (" + t.pk.name + ")"
-	}
-
 }
 
 func (t *Table) DeletePreparedStatement() (string, error) {
@@ -64,3 +56,4 @@ func (t *Table) DeletePreparedStatement() (string, error) {
 func (t *Table) InsertPreparedStatement() (string, error) {
 	return t.dialect.InsertPreparedStatementSql(t.name, t.fields)
 }
+*/

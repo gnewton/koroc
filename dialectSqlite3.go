@@ -12,14 +12,14 @@ type DialectSqlite3 struct {
 //	return "?", nil
 //}
 
-func (d *DialectSqlite3) DeleteByPKPreparedStatementSql(table string, pk *Field) (string, error) {
+func (d *DialectSqlite3) DeleteByPKPreparedStatementSql(table string, pk string) (string, error) {
 	if table == "" {
 		return "", errors.New("table is empty")
 	}
-	if pk == nil {
-		return "", errors.New("pk is nil")
+	if pk == "" {
+		return "", errors.New("pk is empty")
 	}
-	return "DELETE FROM " + table + " where " + pk.name + "=?", nil
+	return "DELETE FROM " + table + " where " + pk + "=?", nil
 }
 
 func (d *DialectSqlite3) InsertPreparedStatementSql(table string, fields []*Field) (string, error) {
@@ -50,15 +50,15 @@ func (d *DialectSqlite3) InsertPreparedStatementSql(table string, fields []*Fiel
 	return sql, nil
 }
 
-func (d *DialectSqlite3) CreateTableSql(table string, fields []*Field, pk *Field) (string, error) {
+func (d *DialectSqlite3) CreateTableSql(table string, fields []*Field, pk string) (string, error) {
 	if table == "" {
 		return "", errors.New("table is empty")
 	}
 	if len(fields) == 0 {
 		return "", errors.New("fields zero length")
 	}
-	if pk == nil {
-		return "", errors.New("pk is nil")
+	if pk == "" {
+		return "", errors.New("pk is empty")
 	}
 
 	sql := "CREATE TABLE " + table + " ("
@@ -75,19 +75,19 @@ func (d *DialectSqlite3) CreateTableSql(table string, fields []*Field, pk *Field
 }
 
 /////////////////
-func (t *DialectSqlite3) createSql(f, pk *Field) (string, error) {
+func (t *DialectSqlite3) createSql(f *Field, pk string) (string, error) {
 	typ, err := f.makeSqlType()
 	if err != nil {
 		return "", err
 	}
 	sql := f.name + " " + typ
-	if f == pk {
+	if f.name == pk {
 		sql += " PRIMARY KEY"
 	}
 	return sql, nil
 }
 
-func (d *DialectSqlite3) fieldCreates(fields []*Field, pk *Field) (string, error) {
+func (d *DialectSqlite3) fieldCreates(fields []*Field, pk string) (string, error) {
 	if fields == nil {
 		return "", errors.New("fields is nil")
 	}

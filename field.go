@@ -41,7 +41,6 @@ func (t SqlType) String() string {
 type Field struct {
 	name            string
 	typ             SqlType
-	pk              bool
 	width           int
 	positionInTable int
 }

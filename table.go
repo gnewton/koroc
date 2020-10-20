@@ -1,18 +1,30 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	//"fmt"
 	//"log"
 )
 
+type AbsTable interface {
+	AddField(f *Field) error
+	Record() *Record
+}
+
 type Table struct {
-	fields       []*Field
-	name         string
-	pk           *Field
-	fmap         map[string]struct{}
-	fieldCounter int
-	dialect      Dialect
+	fields                []*Field
+	name                  string
+	pk                    *Field
+	fmap                  map[string]struct{}
+	fieldCounter          int
+	dialect               Dialect
+	leftTable, rightTable *Table
+
+	insertPreparedStatement        *sql.Stmt
+	insertPreparedStatementSql     string
+	deleteByPKPreparedStatement    *sql.Stmt
+	deleteByPKPreparedStatementSql string
 }
 
 func (t *Table) AddField(f *Field) error {
@@ -43,17 +55,3 @@ func (t *Table) Record() *Record {
 	}
 	return &rec
 }
-
-/*
-func (t *Table) CreateSql() (string, error) {
-	return t.dialect.CreateTableSql(t.name, t.fields, t.pk)
-}
-
-func (t *Table) DeletePreparedStatement() (string, error) {
-	return t.dialect.DeleteByPKPreparedStatementSql(t.name, t.pk)
-}
-
-func (t *Table) InsertPreparedStatement() (string, error) {
-	return t.dialect.InsertPreparedStatementSql(t.name, t.fields)
-}
-*/

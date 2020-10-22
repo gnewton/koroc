@@ -69,11 +69,7 @@ func (p *Persister) SelectOneRecordByPK(tab *Table, v interface{}, rec *Record) 
 		return errors.New("No records returned" + tab.name)
 	}
 
-	valuesPointers := make([]interface{}, len(rec.values))
-	for i, _ := range rec.values {
-		valuesPointers[i] = &rec.values[i]
-	}
-	if err := rows.Scan(valuesPointers...); err != nil {
+	if err := rows.Scan(rec.outValues...); err != nil {
 		return err
 	}
 	if rows.Next() {

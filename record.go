@@ -6,8 +6,9 @@ import (
 )
 
 type Record struct {
-	table  *Table
-	values []interface{}
+	table     *Table
+	values    []interface{}
+	outValues []interface{}
 }
 
 func (r *Record) Initialize(initializeValues bool) error {
@@ -22,6 +23,10 @@ func (r *Record) Initialize(initializeValues bool) error {
 	}
 	if initializeValues {
 		r.values = make([]interface{}, len(r.table.fields))
+		r.outValues = make([]interface{}, len(r.table.fields))
+		for i, _ := range r.values {
+			r.outValues[i] = &r.values[i]
+		}
 	}
 	return nil
 }

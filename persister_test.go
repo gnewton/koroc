@@ -77,7 +77,22 @@ func TestPersist_Insert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	if err = rec.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rec.AddN(0, uint32(49)); err != nil {
+		t.Fatal(err)
+	}
+	if err := rec.AddN(1, "Harry"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rec.AddN(2, false); err != nil {
+		t.Fatal(err)
+	}
+	err = p.Insert(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Log(personTable.selectOneRecordByPKPreparedStatementSql)
 	// Added: 42; Select: 32: should fail
 	newRec, err := personTable.Record()
@@ -90,7 +105,7 @@ func TestPersist_Insert(t *testing.T) {
 	}
 
 	// Should succeed
-	t.Log(rec)
+	t.Log(newRec)
 	newRec, err = personTable.Record()
 	if err != nil {
 		t.Fatal(err)
@@ -103,4 +118,18 @@ func TestPersist_Insert(t *testing.T) {
 	if newRec == nil {
 		t.Fatal(errors.New("selected record is nil"))
 	}
+	t.Log(newRec)
+	newRec, err = personTable.Record()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = p.SelectOneRecordByPK(personTable, uint32(49), newRec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if newRec == nil {
+		t.Fatal(errors.New("selected record is nil"))
+	}
+	t.Log(newRec)
 }

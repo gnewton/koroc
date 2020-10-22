@@ -44,6 +44,44 @@ func (p *Persister) CreateTables(tables ...*Table) error {
 	p.tx = nil
 	return nil
 }
+func (p *Persister) ExistsByPK(tab *Table, v interface{}) (bool, error) {
+	return false, errors.New("TODO")
+}
+
+func (p *Persister) SelectOneRecordByPK(tab *Table, v interface{}, rec *Record) error {
+
+	if tab == nil {
+		return errors.New("Table is nil")
+	}
+	if rec == nil {
+		return errors.New("Record is nil")
+	}
+	if tab.selectOneRecordByPKPreparedStatement == nil {
+		return errors.New("Table.selectOneRecordByPKPreparedStatement is nil; table:" + tab.name)
+	}
+
+	rows, err := tab.selectOneRecordByPKPreparedStatement.Query(v)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return errors.New("No records returned" + tab.name)
+	}
+
+	valuesPointers := make([]interface{}, len(rec.values))
+	for i, _ := range rec.values {
+		valuesPointers[i] = &rec.values[i]
+	}
+	if err := rows.Scan(valuesPointers...); err != nil {
+		return err
+	}
+	if rows.Next() {
+		return errors.New(">1 records returned" + tab.name)
+	}
+	return nil
+
+}
 
 func (p *Persister) DeleteByPK(tab *Table, v interface{}) error {
 	if tab == nil {
@@ -86,7 +124,13 @@ func (p *Persister) Insert(rec *Record) error {
 		err := errors.New("Prepared statement is nil: table:" + rec.table.name)
 		return err
 	}
-	result, err := rec.table.insertPreparedStatement.Exec(rec.values...)
+	args := make([]interface{}, len(rec.values))
+	for i, _ := range rec.values {
+		args[i] = &rec.values[i]
+	}
+
+	result, err := rec.table.insertPreparedStatement.Exec(args...)
+	//result, err := rec.table.insertPreparedStatement.Exec(rec.values...)
 
 	if err != nil {
 		log.Println(err)
@@ -109,15 +153,19 @@ func (p *Persister) Insert(rec *Record) error {
 }
 
 func (p *Persister) JoinTableInsert(joinTable *Table, leftRec, rightRec *Record) error {
-	if leftRec.table != joinTable.leftTable {
+	// TODO: leftRec is saved elsewhere; cache rightRec ids; save rightRec; joinTable should contain fields used for cache key
+	if leftRec.table != joinTable.joinTableInfo.leftTable {
 		return errors.New("Record left table does not match join table left table")
 	}
 
-	if rightRec.table != joinTable.rightTable {
+	if rightRec.table != joinTable.joinTableInfo.rightTable {
 		return errors.New("Record right table does not match join table right table")
 	}
 
-	jrec := joinTable.Record()
+	jrec, err := joinTable.Record()
+	if err != nil {
+		return err
+	}
 	// left table id value
 	jrec.AddN(0, leftRec.values[leftRec.table.pk.positionInTable])
 	// left table id value
@@ -135,13 +183,14 @@ func (p *Persister) TxCommit(dialect Dialect, tables ...*Table) error {
 	var err error
 	for i, _ := range tables {
 		tab := tables[i]
-		err = closePreparedStatements(tab.insertPreparedStatement, tab.deleteByPKPreparedStatement)
+		err = closePreparedStatements(tab.insertPreparedStatement, tab.deleteByPKPreparedStatement, tab.selectOneRecordByPKPreparedStatement)
 
 		if err != nil {
 			return err
 		}
 		tab.insertPreparedStatement = nil
 		tab.deleteByPKPreparedStatement = nil
+		tab.selectOneRecordByPKPreparedStatement = nil
 	}
 
 	err = p.tx.Commit()
@@ -210,5 +259,19 @@ func makeNewPreparedStatements(dialect Dialect, tab *Table, tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
+
+	// SELECT BY PK
+	if tab.selectOneRecordByPKPreparedStatementSql == "" {
+		tab.selectOneRecordByPKPreparedStatementSql, err = dialect.SelectOneRecordByPKPreparedStatementSql(tab.name, tab.fields, tab.pk.name)
+
+		if err != nil {
+			return err
+		}
+	}
+	tab.selectOneRecordByPKPreparedStatement, err = tx.Prepare(tab.selectOneRecordByPKPreparedStatementSql)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

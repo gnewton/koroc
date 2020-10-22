@@ -7,24 +7,27 @@ import (
 	//"log"
 )
 
-type AbsTable interface {
-	AddField(f *Field) error
-	Record() *Record
+type JoinTableInfo struct {
+	leftTable, rightTable      *Table
+	rightTableIDCache          map[string]uint64
+	rightTableIDCacheKeyFields []*Field
 }
 
 type Table struct {
-	fields                []*Field
-	name                  string
-	pk                    *Field
-	fmap                  map[string]struct{}
-	fieldCounter          int
-	dialect               Dialect
-	leftTable, rightTable *Table
-
-	insertPreparedStatement        *sql.Stmt
-	insertPreparedStatementSql     string
-	deleteByPKPreparedStatement    *sql.Stmt
-	deleteByPKPreparedStatementSql string
+	fields                                  []*Field
+	name                                    string
+	pk                                      *Field
+	fmap                                    map[string]struct{}
+	fieldCounter                            int
+	dialect                                 Dialect
+	insertPreparedStatement                 *sql.Stmt
+	insertPreparedStatementSql              string
+	deleteByPKPreparedStatement             *sql.Stmt
+	deleteByPKPreparedStatementSql          string
+	selectOneRecordByPKPreparedStatement    *sql.Stmt
+	selectOneRecordByPKPreparedStatementSql string
+	// if this is a JoinTable
+	joinTableInfo *JoinTableInfo
 }
 
 func (t *Table) AddField(f *Field) error {
@@ -49,9 +52,11 @@ func (t *Table) AddField(f *Field) error {
 	return nil
 }
 
-func (t *Table) Record() *Record {
+func (t *Table) Record() (*Record, error) {
 	rec := Record{
 		table: t,
 	}
-	return &rec
+	err := rec.Initialize(true)
+
+	return &rec, err
 }

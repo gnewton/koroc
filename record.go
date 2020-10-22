@@ -10,18 +10,20 @@ type Record struct {
 	values []interface{}
 }
 
-func (r *Record) Initialize() (*Record, error) {
+func (r *Record) Initialize(initializeValues bool) error {
 	if r.table == nil {
-		return nil, errors.New("Table is nil")
+		return errors.New("Table is nil")
 	}
 	if r.table.fields == nil {
-		return nil, errors.New("Table.fields is nil")
+		return errors.New("Table.fields is nil")
 	}
 	if len(r.table.fields) == 0 {
-		return nil, errors.New("Table.fields is len 0")
+		return errors.New("Table.fields is len 0")
 	}
-	r.values = make([]interface{}, len(r.table.fields))
-	return r, nil
+	if initializeValues {
+		r.values = make([]interface{}, len(r.table.fields))
+	}
+	return nil
 }
 
 func (r *Record) Reset() error {
@@ -44,7 +46,7 @@ func (r *Record) AddN(i int, v interface{}) error {
 	}
 
 	if r.values == nil {
-		r.Initialize()
+		r.Initialize(true)
 	}
 
 	if i >= len(r.values) {
@@ -55,7 +57,7 @@ func (r *Record) AddN(i int, v interface{}) error {
 		return err
 	}
 
-	r.values[i] = v
+	r.values[i] = &v
 	return nil
 }
 
@@ -65,7 +67,7 @@ func (r *Record) Add(f *Field, v interface{}) error {
 	}
 	if r.values == nil {
 		var err error
-		r, err = r.Initialize()
+		err = r.Initialize(true)
 		if err != nil {
 			return err
 		}
@@ -76,6 +78,6 @@ func (r *Record) Add(f *Field, v interface{}) error {
 	if err := r.table.fields[f.positionInTable].CheckValueType(v); err != nil {
 		return err
 	}
-	r.values[f.positionInTable] = v
+	r.values[f.positionInTable] = &v
 	return nil
 }

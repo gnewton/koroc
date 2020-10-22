@@ -151,7 +151,10 @@ func _InsertRecord(t *testing.T, db *sql.DB, v0 uint32, v1 string, v2 bool) (*sq
 		return nil, nil, err
 	}
 
-	rec := tab.Record()
+	rec, err := tab.Record()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := rec.Add(f0, v0); err != nil {
 		t.Log(err)
 		return nil, nil, err

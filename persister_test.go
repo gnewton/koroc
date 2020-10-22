@@ -50,30 +50,30 @@ func TestPersist_Insert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// rec, err := personTable.Record()
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if err := rec.AddN(0, uint32(42)); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if err := rec.AddN(1, "Bill"); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if err := rec.AddN(2, true); err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	rec := Record{
-		table:  personTable,
-		values: []interface{}{uint32(42), "Bill", true},
+	rec, err := personTable.Record()
+	if err != nil {
+		t.Fatal(err)
 	}
+	if err := rec.AddN(0, uint32(42)); err != nil {
+		t.Fatal(err)
+	}
+	if err := rec.AddN(1, "Bill"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rec.AddN(2, true); err != nil {
+		t.Fatal(err)
+	}
+
+	// rec := Record{
+	// 	table:  personTable,
+	// 	values: []*interface{}{uint32(42), "Bill", true},
+	// }
 
 	if err := rec.Initialize(false); err != nil {
 		t.Fatal(err)
 	}
 
-	err = p.Insert(&rec)
+	err = p.Insert(rec)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -124,13 +124,7 @@ func (p *Persister) Insert(rec *Record) error {
 		err := errors.New("Prepared statement is nil: table:" + rec.table.name)
 		return err
 	}
-	args := make([]interface{}, len(rec.values))
-	for i, _ := range rec.values {
-		args[i] = &rec.values[i]
-	}
-
-	result, err := rec.table.insertPreparedStatement.Exec(args...)
-	//result, err := rec.table.insertPreparedStatement.Exec(rec.values...)
+	result, err := rec.table.insertPreparedStatement.Exec(rec.values...)
 
 	if err != nil {
 		log.Println(err)

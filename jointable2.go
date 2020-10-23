@@ -4,8 +4,10 @@ import (
 	"errors"
 )
 
-func NewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, keyFields ...*Field) (*Table, error) {
-	if err := errorsNewJoinTable2(leftTable, rightTable, additionalFields, keyFields...); err != nil {
+//func NewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, rightTableIDCacheKeyFields ...*Field) (*Table, error) {
+func NewJoinTable2(leftTable, rightTable *Table, rightTableIDCacheKeyFields ...*Field) (*Table, error) {
+	//if err := errorsNewJoinTable2(leftTable, rightTable, additionalFields, rightTableIDCacheKeyFields...); err != nil {
+	if err := errorsNewJoinTable2(leftTable, rightTable, rightTableIDCacheKeyFields...); err != nil {
 		return nil, err
 	}
 
@@ -23,28 +25,30 @@ func NewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, keyF
 	jt.pk = lf
 	jt.AddField(rf)
 
-	if additionalFields != nil {
-		for i, _ := range additionalFields {
-			af := additionalFields[i]
-			if af == nil {
-				return nil, errors.New("Additional field is nil")
-			}
-			err := jt.AddField(af)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
+	// if additionalFields != nil {
+	// 	for i, _ := range additionalFields {
+	// 		af := additionalFields[i]
+	// 		if af == nil {
+	// 			return nil, errors.New("Additional field is nil")
+	// 		}
+	// 		err := jt.AddField(af)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 	}
+	// }
+	// Join info
 	jtInfo := new(JoinTableInfo)
 	jt.joinTableInfo = jtInfo
 	jtInfo.leftTable = leftTable
 	jtInfo.rightTable = rightTable
-	jtInfo.rightTableIDCacheKeyFields = keyFields
+	jtInfo.rightTableIDCacheKeyFields = rightTableIDCacheKeyFields
 
 	return jt, nil
 }
 
-func errorsNewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, keyFields ...*Field) error {
+//func errorsNewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, keyFields ...*Field) error {
+func errorsNewJoinTable2(leftTable, rightTable *Table, keyFields ...*Field) error {
 	if leftTable == nil {
 		return errors.New("left table is nil")
 	}

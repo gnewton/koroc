@@ -40,7 +40,17 @@ func (r *Record) Reset() error {
 	}
 	return nil
 }
+func (r *Record) Get(f *Field) (interface{}, error) {
+	if f == nil {
+		return nil, errors.New("field is nil")
+	}
+	positionInTable := f.positionInTable
+	if positionInTable < 0 {
+		return nil, errors.New("positionInTable index is < 0")
+	}
+	return r.values[positionInTable], nil
 
+}
 func (r *Record) AddN(i int, v interface{}) error {
 	if r.table == nil {
 		return errors.New("Table is nil")
@@ -62,7 +72,7 @@ func (r *Record) AddN(i int, v interface{}) error {
 		return err
 	}
 
-	r.values[i] = &v
+	r.values[i] = v
 	return nil
 }
 
@@ -83,6 +93,6 @@ func (r *Record) Add(f *Field, v interface{}) error {
 	if err := r.table.fields[f.positionInTable].CheckValueType(v); err != nil {
 		return err
 	}
-	r.values[f.positionInTable] = &v
+	r.values[f.positionInTable] = v
 	return nil
 }

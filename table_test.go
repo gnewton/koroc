@@ -278,3 +278,51 @@ func personTable(dialect Dialect) (*Table, *Field, *Field, *Field) {
 	tab.pk = &f0
 	return &tab, &f0, &f1, &f2
 }
+
+// TODO: add err return
+func carTable(dialect Dialect) (*Table, *Field, *Field, *Field, *Field) {
+
+	tab := Table{name: "car",
+		dialect: dialect,
+	}
+
+	f0 := Field{
+		name: "id",
+		typ:  Uint32,
+	}
+
+	f1 := Field{
+		name: "manufacturer",
+		typ:  Text,
+	}
+	f2 := Field{
+		name: "model",
+		typ:  Text,
+	}
+
+	f3 := Field{
+		name: "year",
+		typ:  Uint32,
+	}
+	tab.pk = &f0
+	return &tab, &f0, &f1, &f2, &f3
+}
+
+func carTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, *Field, error) {
+	tab, f0, f1, f2, f3 := carTable(dialect)
+	if err := tab.AddField(f0); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+
+	if err := tab.AddField(f1); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+
+	if err := tab.AddField(f2); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	if err := tab.AddField(f3); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	return tab, f0, f1, f2, f3, nil
+}

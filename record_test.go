@@ -208,3 +208,27 @@ func TestRecord_Reset_RecordValuesNil(t *testing.T) {
 
 //////////////////////////////////////////////////////////////////////
 // Positive tests
+
+//////////////////////////////////////////////////////////////////////
+
+func carRecord1(carTable *Table, carId, manufacturer, model, year *Field) (*Record, error) {
+	car, err := carTable.Record()
+	if err != nil {
+		return nil, err
+	}
+	if err := car.Add(carId, uint32(17)); err != nil {
+		return nil, err
+	}
+	if err := car.Add(manufacturer, "Ford"); err != nil {
+		return nil, err
+	}
+
+	if err := car.Add(model, "Escort"); err != nil {
+		return nil, err
+	}
+	if err := car.Add(year, uint32(1988)); err != nil {
+		return nil, err
+	}
+	return car, nil
+
+}

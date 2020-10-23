@@ -3,15 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
-	//"fmt"
-	//"log"
 )
-
-type JoinTableInfo struct {
-	leftTable, rightTable      *Table
-	rightTableIDCache          map[string]uint64
-	rightTableIDCacheKeyFields []*Field
-}
 
 type Table struct {
 	fields                                  []*Field

@@ -7,11 +7,34 @@ import (
 
 //////////////////////////////////////////////////////////////////////
 // Failing tests
+func TestPersist_InsertJoin_JTNil(t *testing.T) {
+	//t.Fatal("TODO")
+}
+
+func TestPersist_InsertJoin_JTInfoNil(t *testing.T) {
+	//	t.Fatal("TODO")
+}
+
+func TestPersist_InsertJoin_LeftRecNil(t *testing.T) {
+	//	t.Fatal("TODO")
+}
+
+func TestPersist_InsertJoin_RightRecNil(t *testing.T) {
+	//	t.Fatal("TODO")
+}
+
+func TestPersist_InsertJoin_LeftRecNEJTInfoLeftRec(t *testing.T) {
+	//	t.Fatal("TODO")
+}
+
+func TestPersist_InsertJoin_RightRecNEJTInfoRightRec(t *testing.T) {
+	//	t.Fatal("TODO")
+}
 
 //////////////////////////////////////////////////////////////////////
 // Positive tests
 func TestPersist_positive(t *testing.T) {
-	//f.Fatal("TODO")
+	//t.Fatal("TODO")
 }
 
 func TestPersist_Insert(t *testing.T) {

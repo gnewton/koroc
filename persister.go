@@ -103,6 +103,68 @@ func (p *Persister) DeleteByPK(tab *Table, v interface{}) error {
 	return nil
 }
 
+// Responsible to:
+// 1 - If Right table id is not in cache (not previously saved; key is )
+//     - Increment right table id counter, add it to cache; assign to right table rec,
+//     - Assign right table rec PK = right table id counter
+//     - Save right table rec
+// 2 - Assign jt rt id = right table id counter
+// 3 - Save jt
+func (p *Persister) InsertJoin(jt *Table, leftRec, rightRec *Record) error {
+	if jt == nil {
+		return errors.New("Join table is nil")
+	}
+	if jt.joinTableInfo == nil {
+		return errors.New("JoinTableInfo is nil")
+	}
+	if leftRec == nil {
+		return errors.New("Left record is nil")
+	}
+	if rightRec == nil {
+		return errors.New("Right record is nil")
+	}
+	if rightRec.table == nil {
+		return errors.New("Right record.table is nil")
+	}
+	if rightRec.table.pk == nil {
+		return errors.New("Right record.table.pkis nil")
+	}
+	//
+	jtInfo := jt.joinTableInfo
+	if jtInfo.leftTable != leftRec.table {
+		return errors.New("Left tables do not match")
+	}
+	if jtInfo.rightTable != rightRec.table {
+		return errors.New("Right tables do not match")
+	}
+
+	key, err := jtInfo.makeKey(rightRec)
+	if err != nil {
+		return err
+	}
+
+	log.Println(key)
+
+	leftId := leftRec.values[leftRec.table.pk.positionInTable]
+	rightId := rightRec.values[rightRec.table.pk.positionInTable]
+
+	joinRec, err := jt.Record()
+	if err != nil {
+		return err
+	}
+
+	// left table id value
+	joinRec.AddN(0, leftId)
+	// left table id value
+	joinRec.AddN(1, rightId)
+
+	if err := p.Insert(joinRec); err != nil {
+		return err
+	}
+
+	return errors.New("TODO")
+}
+
 func (p *Persister) Insert(rec *Record) error {
 	if rec == nil {
 		err := errors.New("Record is nil")

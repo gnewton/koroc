@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 type SqlType int
@@ -36,6 +37,44 @@ func (t SqlType) String() string {
 		return "bool"
 	}
 	return "UNKNOWN TYPE"
+}
+
+func (t SqlType) ValueToString(field *Field, v interface{}) (string, error) {
+	switch t {
+
+	case Text:
+		tv, ok := v.(string)
+		if ok {
+			return tv, nil
+		} else {
+			return "", errors.New("Value does not match field type: is not a string; field name:" + field.name + ":" + strconv.Itoa(field.positionInTable))
+		}
+	case Uint32:
+		tv, ok := v.(uint32)
+		if ok {
+			return strconv.FormatUint(uint64(tv), 10), nil
+		} else {
+			return "", errors.New("Value does not match field type: is not a uint32" + Uint32.String())
+		}
+		//return "uint32"
+	case Uint64:
+		tv, ok := v.(uint64)
+		if ok {
+			return strconv.FormatUint(tv, 10), nil
+		} else {
+			return "", errors.New("Value does not match field type: is not a uint64" + Uint64.String())
+		}
+		//return "uint64"
+	case Boolean:
+		tv, ok := v.(bool)
+		if ok {
+			return strconv.FormatBool(tv), nil
+		} else {
+			return "", errors.New("Value does not match field type: is not a bool" + Boolean.String())
+		}
+		//return "bool"
+	}
+	return "", errors.New("Unknown type: " + t.String())
 }
 
 type Field struct {

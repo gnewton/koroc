@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 )
 
-//func NewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, rightTableIDCacheKeyFields ...*Field) (*Table, error) {
-func NewJoinTable2(leftTable, rightTable *Table, rightTableIDCacheKeyFields ...*Field) (*Table, error) {
-	//if err := errorsNewJoinTable2(leftTable, rightTable, additionalFields, rightTableIDCacheKeyFields...); err != nil {
-	if err := errorsNewJoinTable2(leftTable, rightTable, rightTableIDCacheKeyFields...); err != nil {
+func NewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, rightTableIDCacheKeyFields ...*Field) (*Table, error) {
+	//func NewJoinTable2(leftTable, rightTable *Table, rightTableIDCacheKeyFields ...*Field) (*Table, error) {
+	if err := errorsNewJoinTable2(leftTable, rightTable, additionalFields, rightTableIDCacheKeyFields...); err != nil {
+		//if err := errorsNewJoinTable2(leftTable, rightTable, rightTableIDCacheKeyFields...); err != nil {
 		return nil, err
 	}
 
@@ -47,8 +48,8 @@ func NewJoinTable2(leftTable, rightTable *Table, rightTableIDCacheKeyFields ...*
 	return jt, nil
 }
 
-//func errorsNewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, keyFields ...*Field) error {
-func errorsNewJoinTable2(leftTable, rightTable *Table, keyFields ...*Field) error {
+func errorsNewJoinTable2(leftTable, rightTable *Table, additionalFields []*Field, keyFields ...*Field) error {
+	//func errorsNewJoinTable2(leftTable, rightTable *Table, keyFields ...*Field) error {
 	if leftTable == nil {
 		return errors.New("left table is nil")
 	}
@@ -56,10 +57,12 @@ func errorsNewJoinTable2(leftTable, rightTable *Table, keyFields ...*Field) erro
 		return errors.New("right table is nil")
 	}
 	if leftTable.pk == nil {
-		return errors.New("left table pk is nil")
+		err := fmt.Errorf("left table [%s] pk is nil", leftTable)
+		return err
 	}
 	if rightTable.pk == nil {
-		return errors.New("right table pk is nil")
+		err := fmt.Errorf("right table [%s] pk is nil", rightTable)
+		return err
 	}
 	if leftTable.pk.name == "" {
 		return errors.New("left table pk name is empty")
@@ -67,6 +70,15 @@ func errorsNewJoinTable2(leftTable, rightTable *Table, keyFields ...*Field) erro
 	if rightTable.pk.name == "" {
 		return errors.New("right table pk name is empty")
 
+	}
+
+	if additionalFields != nil && len(additionalFields) > 0 {
+		for i, _ := range additionalFields {
+			if additionalFields[i] == nil {
+				err := fmt.Errorf("additional fields [%d] is nil", i)
+				return err
+			}
+		}
 	}
 	return nil
 }

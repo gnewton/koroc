@@ -49,10 +49,10 @@ func TestField_CheckValue_NilValue(t *testing.T) {
 
 //////////////////////////////////////////////////////////////////////
 // Positive tests
-func TestField_CheckValue_WantUint32GotUint(t *testing.T) {
+func TestField_CheckValue_WantUint64GotUint(t *testing.T) {
 	_, f0, _, _ := personTable(new(DialectSqlite3))
 
-	if err := f0.CheckValueType(uint32(32)); err != nil {
+	if err := f0.CheckValueType(uint64(15)); err != nil {
 		t.Fatal(err)
 	}
 }

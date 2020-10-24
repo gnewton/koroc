@@ -1,10 +1,10 @@
 package main
 
 import (
-	"database/sql"
-	"errors"
+	//"database/sql"
+	//	"errors"
 	"log"
-	"strconv"
+	//	"strconv"
 	"sync"
 	"time"
 
@@ -17,7 +17,7 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 	defer wg.Done()
 	var err error
 	log.Println("Start articleAdder")
-	kwjt, err := NewJoinTable("article_keyword", "article_id", "keyword_id", kwjtCreateSql, kwjtInsert, kwtSavePreparedSql)
+	//kwjt, err := NewJoinTable("article_keyword", "article_id", "keyword_id", kwjtCreateSql, kwjtInsert, kwtSavePreparedSql)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -30,21 +30,21 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 	gormtx := gormdb.Begin()
 	gormtx.Debug()
 
-	sdb, err := gormtx.DB()
-	if err != nil {
-		log.Fatal(err)
-	}
-	create, index := kwjt.CreateSql()
-	_, err = sdb.Exec(create)
-	if err != nil {
-		log.Println(create)
-		log.Fatal(err)
-	}
-	_, err = sdb.Exec(index)
-	if err != nil {
-		log.Println(index)
-		log.Fatal(err)
-	}
+	// sdb, err := gormtx.DB()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// create, index := kwjt.CreateSql()
+	// _, err = sdb.Exec(create)
+	// if err != nil {
+	// 	log.Println(create)
+	// 	log.Fatal(err)
+	// }
+	// _, err = sdb.Exec(index)
+	// if err != nil {
+	// 	log.Println(index)
+	// 	log.Fatal(err)
+	// }
 
 	if err = gormtx.Commit().Error; err != nil {
 		log.Fatal(err)
@@ -59,18 +59,18 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 		log.Fatal(err)
 	}
 
-	kwjtDeletePrepared, err := kwjt.DeletePreparedStatement(tx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	kwjtSavePrepared, err := kwjt.SavePreparedStatement(tx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	kwPrepared, err := Keyword{}.MakePreparedStatement(tx)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// kwjtDeletePrepared, err := kwjt.DeletePreparedStatement(tx)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// kwjtSavePrepared, err := kwjt.SavePreparedStatement(tx)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// kwPrepared, err := Keyword{}.MakePreparedStatement(tx)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	articleInsertPrepared, articleDeletePrepared, err := Article{}.MakePreparedStatements(tx)
 	if err != nil {
@@ -108,12 +108,12 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 					log.Fatal(err)
 				}
 
-				if err := kwjtSavePrepared.Close(); err != nil {
-					log.Fatal(err)
-				}
-				if err := kwjtDeletePrepared.Close(); err != nil {
-					log.Fatal(err)
-				}
+				// if err := kwjtSavePrepared.Close(); err != nil {
+				// 	log.Fatal(err)
+				// }
+				// if err := kwjtDeletePrepared.Close(); err != nil {
+				// 	log.Fatal(err)
+				// }
 
 				log.Println("------------------------------------------start commit")
 				tc0 := time.Now()
@@ -140,27 +140,27 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 				if err != nil {
 					log.Fatal(err)
 				}
-				kwPrepared, err = Keyword{}.MakePreparedStatement(tx)
-				if err != nil {
-					log.Fatal(err)
-				}
-				kwjtDeletePrepared, err = kwjt.DeletePreparedStatement(tx)
-				if err != nil {
-					log.Fatal(err)
-				}
-				kwjtSavePrepared, err = kwjt.SavePreparedStatement(tx)
-				if err != nil {
-					log.Fatal(err)
-				}
+				// kwPrepared, err = Keyword{}.MakePreparedStatement(tx)
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+				// kwjtDeletePrepared, err = kwjt.DeletePreparedStatement(tx)
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+				// kwjtSavePrepared, err = kwjt.SavePreparedStatement(tx)
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
 			}
 			var err error
 
 			if version, ok := articleIdsInDBCache[article.ID]; !ok {
 				// New record
-				err = addKeywords(kwPrepared, kwjt, tx, article.ID, article.Keywords, article.SourceXMLFilename)
-				if err != nil {
-					log.Fatal(err)
-				}
+				// err = addKeywords(kwPrepared, kwjt, tx, article.ID, article.Keywords, article.SourceXMLFilename)
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
 				articleIdsInDBCache[article.ID] = article.Version
 				if doNotWriteToDbFlag {
 					continue
@@ -187,15 +187,15 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 					if err != nil {
 						log.Fatal(err)
 					}
-					err = kwjt.Delete(article.ID, kwjtDeletePrepared)
-					if err != nil {
-						log.Fatal(err)
-					}
+					// err = kwjt.Delete(article.ID, kwjtDeletePrepared)
+					// if err != nil {
+					// 	log.Fatal(err)
+					// }
 
-					err = addKeywords(kwPrepared, kwjt, tx, article.ID, article.Keywords, article.SourceXMLFilename)
-					if err != nil {
-						log.Fatal(err)
-					}
+					// err = addKeywords(kwPrepared, kwjt, tx, article.ID, article.Keywords, article.SourceXMLFilename)
+					// if err != nil {
+					// 	log.Fatal(err)
+					// }
 					if err = article.Save(articleInsertPrepared); err != nil {
 						log.Fatal(err)
 					}
@@ -228,44 +228,44 @@ func articleAdder(articleChannel chan ArticlesEnvelope, dbc *DBConnector, db *go
 	log.Println("++ END articleAdder")
 }
 
-func addKeywords(kwPrepared *sql.Stmt, kwjt *JoinTable, tx *sql.Tx, articleId uint32, keywords []*Keyword, sourceFile string) error {
-	dups := make(map[string]struct{})
-	for _, kw := range keywords {
+// func addKeywords(kwPrepared *sql.Stmt, kwjt *JoinTable, tx *sql.Tx, articleId uint32, keywords []*Keyword, sourceFile string) error {
+// 	dups := make(map[string]struct{})
+// 	for _, kw := range keywords {
 
-		//rightId, newItem, joinSql, err := kwjt.AddJoinItem(article.ID, kw.Name)
-		rightId, newKeyword, joinSql, err := kwjt.AddJoinItem(articleId, kw)
-		if err != nil {
-			return err
-		}
-		if newKeyword {
-			kw.ID = rightId
-			kw.Save(kwPrepared)
-		}
-		dupKey := strconv.FormatUint(uint64(articleId), 10) + "_" + strconv.FormatUint(uint64(rightId), 10)
-		if _, ok := dups[dupKey]; ok {
-			log.Println("------------------------------------------------Duplicate entry:", sourceFile, articleId, rightId, "["+kw.Name+"]", dups)
-			continue
-		} else {
-			dups[dupKey] = empty
-		}
+// 		//rightId, newItem, joinSql, err := kwjt.AddJoinItem(article.ID, kw.Name)
+// 		rightId, newKeyword, joinSql, err := kwjt.AddJoinItem(articleId, kw)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if newKeyword {
+// 			kw.ID = rightId
+// 			kw.Save(kwPrepared)
+// 		}
+// 		dupKey := strconv.FormatUint(uint64(articleId), 10) + "_" + strconv.FormatUint(uint64(rightId), 10)
+// 		if _, ok := dups[dupKey]; ok {
+// 			log.Println("------------------------------------------------Duplicate entry:", sourceFile, articleId, rightId, "["+kw.Name+"]", dups)
+// 			continue
+// 		} else {
+// 			dups[dupKey] = empty
+// 		}
 
-		//if err = tx.Exec(joinSql).Error; err != nil {
-		r, err := tx.Exec(joinSql)
-		if err != nil {
-			log.Println(err)
-			log.Println("articleid=", articleId)
-			log.Fatal("Fatal ", joinSql)
-		}
-		n, err := r.RowsAffected()
-		if err != nil {
-			log.Println("articleid=", articleId)
-			log.Fatal(joinSql)
-		}
-		if n != 1 {
-			log.Println("articleid=", articleId)
-			log.Fatal(errors.New("Join insert affected >1 record"))
-		}
+// 		//if err = tx.Exec(joinSql).Error; err != nil {
+// 		r, err := tx.Exec(joinSql)
+// 		if err != nil {
+// 			log.Println(err)
+// 			log.Println("articleid=", articleId)
+// 			log.Fatal("Fatal ", joinSql)
+// 		}
+// 		n, err := r.RowsAffected()
+// 		if err != nil {
+// 			log.Println("articleid=", articleId)
+// 			log.Fatal(joinSql)
+// 		}
+// 		if n != 1 {
+// 			log.Println("articleid=", articleId)
+// 			log.Fatal(errors.New("Join insert affected >1 record"))
+// 		}
 
-	}
-	return nil
-}
+// 	}
+// 	return nil
+// }

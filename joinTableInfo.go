@@ -14,6 +14,15 @@ type JoinTableInfo struct {
 
 const SEPARATOR = "|"
 
+func (jt *JoinTableInfo) rightTableInCache(key string, rightTablePK uint64) (bool, uint64, error) {
+	if jt.rightTableIDCache == nil {
+		return false, 0, fmt.Errorf("rightTableIDCache is nil; jf leftTable[%s] rightTable[%s]", jt.leftTable, jt.rightTable)
+	}
+	_, ok := rightTableIDCache[key]
+	if !ok {
+	}
+}
+
 func (jt *JoinTableInfo) makeKey(rec *Record) (string, error) {
 	if jt.rightTableIDCacheKeyFields == nil {
 		return "", errors.New("rightTableIDCacheKeyFields is nil")

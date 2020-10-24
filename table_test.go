@@ -28,13 +28,13 @@ func TestTable_AddField_EmptyFieldName(t *testing.T) {
 
 func TestTable_AddField_RepeatFieldName(t *testing.T) {
 	tab, f0, _, _ := personTable(new(DialectSqlite3))
-	t.Log(tab.fmap)
+	t.Log(tab.fieldMap)
 	if err := tab.AddField(f0); err != nil {
 		t.Fatal("Should not fail")
 	}
-	t.Log(tab.fmap)
+	t.Log(tab.fieldMap)
 	if err := tab.AddField(f0); err == nil {
-		t.Log(tab.fmap)
+		t.Log(tab.fieldMap)
 		t.Fatal("Should fail")
 	}
 }
@@ -59,7 +59,7 @@ func TestTable_InsertRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var id uint32 = 10
+	var id uint64 = 10
 	_, _, err = _InsertRecord(t, db, id, "foo", true)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestTable_DeleteRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var id uint32 = 10
+	var id uint64 = 10
 	db, tab, err := _InsertRecord(t, db, id, "foo", true)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestTable_DeleteRecord(t *testing.T) {
 //////////////////////////////////////////////////////////////////////
 //helpers
 
-func _DeleteRecord(t *testing.T, v0 uint32, db *sql.DB, tab *Table) error {
+func _DeleteRecord(t *testing.T, v0 uint64, db *sql.DB, tab *Table) error {
 
 	preparedDeleteSql, err := tab.dialect.DeleteByPKPreparedStatementSql(tab.name, tab.pk.name)
 	if err != nil {
@@ -125,7 +125,7 @@ func _DeleteRecord(t *testing.T, v0 uint32, db *sql.DB, tab *Table) error {
 	return nil
 }
 
-func _InsertRecord(t *testing.T, db *sql.DB, v0 uint32, v1 string, v2 bool) (*sql.DB, *Table, error) {
+func _InsertRecord(t *testing.T, db *sql.DB, v0 uint64, v1 string, v2 bool) (*sql.DB, *Table, error) {
 
 	tab, f0, f1, f2, err := _CreateTable(t, db)
 
@@ -241,6 +241,7 @@ func newDB() (*sql.DB, error) {
 
 func personTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, error) {
 	tab, f0, f1, f2 := personTable(dialect)
+
 	if err := tab.AddField(f0); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -252,6 +253,11 @@ func personTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, error) {
 	if err := tab.AddField(f2); err != nil {
 		return nil, nil, nil, nil, err
 	}
+
+	if err := tab.SetPrimaryKey(f0); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
 	return tab, f0, f1, f2, nil
 }
 
@@ -263,7 +269,7 @@ func personTable(dialect Dialect) (*Table, *Field, *Field, *Field) {
 
 	f0 := Field{
 		name: "id",
-		typ:  Uint32,
+		typ:  Uint64,
 	}
 
 	f1 := Field{
@@ -275,12 +281,12 @@ func personTable(dialect Dialect) (*Table, *Field, *Field, *Field) {
 		name: "has_car",
 		typ:  Boolean,
 	}
-	tab.pk = &f0
+
 	return &tab, &f0, &f1, &f2
 }
 
 // TODO: add err return
-func carTable(dialect Dialect) (*Table, *Field, *Field, *Field, *Field) {
+func carTable(dialect Dialect) (*Table, *Field, *Field, *Field, *Field, error) {
 
 	tab := Table{name: "car",
 		dialect: dialect,
@@ -288,7 +294,7 @@ func carTable(dialect Dialect) (*Table, *Field, *Field, *Field, *Field) {
 
 	f0 := Field{
 		name: "id",
-		typ:  Uint32,
+		typ:  Uint64,
 	}
 
 	f1 := Field{
@@ -304,12 +310,20 @@ func carTable(dialect Dialect) (*Table, *Field, *Field, *Field, *Field) {
 		name: "year",
 		typ:  Uint32,
 	}
-	tab.pk = &f0
-	return &tab, &f0, &f1, &f2, &f3
+	err := tab.SetPrimaryKey(&f0)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+
+	return &tab, &f0, &f1, &f2, &f3, nil
 }
 
 func carTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, *Field, error) {
-	tab, f0, f1, f2, f3 := carTable(dialect)
+	tab, f0, f1, f2, f3, err := carTable(dialect)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+
 	if err := tab.AddField(f0); err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -321,8 +335,14 @@ func carTableFull(dialect Dialect) (*Table, *Field, *Field, *Field, *Field, erro
 	if err := tab.AddField(f2); err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
+
 	if err := tab.AddField(f3); err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
+
+	if err = tab.SetPrimaryKey(f0); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+
 	return tab, f0, f1, f2, f3, nil
 }

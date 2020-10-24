@@ -77,7 +77,7 @@ func TestPersist_Insert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := rec.AddN(0, uint32(42)); err != nil {
+	if err := rec.AddN(0, uint64(42)); err != nil {
 		t.Fatal(err)
 	}
 	if err := rec.AddN(1, "Bill"); err != nil {
@@ -103,7 +103,7 @@ func TestPersist_Insert(t *testing.T) {
 	if err = rec.Reset(); err != nil {
 		t.Fatal(err)
 	}
-	if err := rec.AddN(0, uint32(49)); err != nil {
+	if err := rec.AddN(0, uint64(49)); err != nil {
 		t.Fatal(err)
 	}
 	if err := rec.AddN(1, "Harry"); err != nil {

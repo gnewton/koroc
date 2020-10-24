@@ -216,7 +216,7 @@ func carRecord1(carTable *Table, carId, manufacturer, model, year *Field) (*Reco
 	if err != nil {
 		return nil, err
 	}
-	if err := car.Add(carId, uint32(17)); err != nil {
+	if err := car.Add(carId, uint64(17)); err != nil {
 		return nil, err
 	}
 	if err := car.Add(manufacturer, "Ford"); err != nil {

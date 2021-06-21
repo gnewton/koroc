@@ -47,6 +47,9 @@ Python sqlite loader
   48 CPU cores with 2.1 GHz reduced the result calculation time of
   10.5 days to 20 hours."
 6 https://github.com/MrMimic/MEDOC/blob/master/database_creation.sql
+7 Semantic maps and metrics for science Semantic maps and metrics for science using deep transformer encoders
+  2021 https://github.com/brendanchambers/parse_pubmed
+  https://arxiv.org/abs/2104.05928
 
 
 SQLITE3 optimization
@@ -130,3 +133,4 @@ func main() {
 	fmt.Println(dm)
 }
 //////////////
+
